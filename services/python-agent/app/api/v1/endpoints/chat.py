@@ -7,6 +7,7 @@ Permite interacao com documentos processados usando retrieval-augmented generati
 from __future__ import annotations
 
 import logging
+import time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -45,8 +46,10 @@ def chat(
     Se nao houver contexto relevante, retorna limitacao explicita.
     """
     request_id = getattr(request.state, "request_id", "unknown")
+    start_time = time.perf_counter()
+
     logger.info(
-        "Chat request: project_id=%s, session_id=%s, request_id=%s",
+        "Chat request started: project_id=%s, session_id=%s, request_id=%s",
         req.project_id,
         req.session_id,
         request_id,
@@ -58,16 +61,22 @@ def chat(
             session_id=req.session_id,
             message=req.message,
         )
+        duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(
-            "Chat response: session_id=%s, sources=%d, request_id=%s",
+            "Chat request completed: session_id=%s, sources=%d, duration_ms=%.2f, request_id=%s",
             response.session_id,
             len(response.sources),
+            duration_ms,
             request_id,
         )
         return response
     except LLMError as exc:
+        duration_ms = (time.perf_counter() - start_time) * 1000
         logger.error(
-            "Erro ao gerar resposta LLM: %s, request_id=%s",
+            "LLM error in chat: project_id=%s, session_id=%s, duration_ms=%.2f, error=%s, request_id=%s",
+            req.project_id,
+            req.session_id,
+            duration_ms,
             exc,
             request_id,
         )
@@ -76,8 +85,12 @@ def chat(
             detail="Erro ao gerar resposta do modelo. Tente novamente.",
         ) from exc
     except Exception as exc:
+        duration_ms = (time.perf_counter() - start_time) * 1000
         logger.error(
-            "Erro inesperado no chat: %s, request_id=%s",
+            "Unexpected error in chat: project_id=%s, session_id=%s, duration_ms=%.2f, error=%s, request_id=%s",
+            req.project_id,
+            req.session_id,
+            duration_ms,
             exc,
             request_id,
         )

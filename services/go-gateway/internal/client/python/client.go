@@ -72,6 +72,7 @@ func (c *Client) Compare(ctx context.Context, req *v1.CompareRequest) (*v1.Compa
 // doRequest executa chamada HTTP generica com tratamento de erro padronizado.
 // Serializa req como JSON, envia para endpoint relativo, desserializa resposta.
 // Classifica erros por tipo HTTP para mapeamento correto no handler.
+// Loga request completo (method, url, duration, status) em JSON.
 func doRequest[Req any, Resp any](
 	ctx context.Context,
 	c *Client,
@@ -95,8 +96,9 @@ func doRequest[Req any, Resp any](
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	// Extrair request_id do contexto para logging (se disponivel)
-	if requestID, ok := ctx.Value("request_id").(string); ok && requestID != "" {
+	// Extrair request_id do contexto para propagacao ao Python
+	// O middleware RequestID injeta o valor no contexto Go
+	if requestID := getRequestIDFromContext(ctx); requestID != "" {
 		httpReq.Header.Set("X-Request-ID", requestID)
 	}
 
@@ -105,16 +107,22 @@ func doRequest[Req any, Resp any](
 		slog.String("operation", opName),
 		slog.String("method", method),
 		slog.String("url", url),
+		slog.String("request_id", getRequestIDFromContext(ctx)),
 	)
 
-	// Executar chamada HTTP
+	// Executar chamada HTTP com medicao de duracao
+	start := time.Now()
 	resp, err := c.httpClient.Do(httpReq)
+	duration := time.Since(start)
+
 	if err != nil {
 		// Classificar erro de conexao/timeout
 		if ctx.Err() == context.DeadlineExceeded || errors.Is(err, context.DeadlineExceeded) {
 			slog.Warn("python agent request timeout",
 				slog.String("operation", opName),
 				slog.String("url", url),
+				slog.String("request_id", getRequestIDFromContext(ctx)),
+				slog.Duration("duration", duration),
 			)
 			return nil, ErrTimeout
 		}
@@ -123,6 +131,8 @@ func doRequest[Req any, Resp any](
 			slog.Warn("python agent request timeout (client timeout)",
 				slog.String("operation", opName),
 				slog.String("url", url),
+				slog.String("request_id", getRequestIDFromContext(ctx)),
+				slog.Duration("duration", duration),
 			)
 			return nil, ErrTimeout
 		}
@@ -130,6 +140,8 @@ func doRequest[Req any, Resp any](
 			slog.String("operation", opName),
 			slog.String("url", url),
 			slog.String("error", err.Error()),
+			slog.String("request_id", getRequestIDFromContext(ctx)),
+			slog.Duration("duration", duration),
 		)
 		return nil, ErrServiceUnavailable
 	}
@@ -141,11 +153,13 @@ func doRequest[Req any, Resp any](
 		return nil, fmt.Errorf("failed to read %s response body: %w", opName, err)
 	}
 
-	// Log da resposta (status e tamanho)
+	// Log da resposta com duracao e status
 	slog.Info("python agent response",
 		slog.String("operation", opName),
 		slog.Int("status", resp.StatusCode),
 		slog.Int("body_size", len(respBody)),
+		slog.String("request_id", getRequestIDFromContext(ctx)),
+		slog.Duration("duration", duration),
 	)
 
 	// Classificar erro por status HTTP
@@ -156,6 +170,8 @@ func doRequest[Req any, Resp any](
 			slog.String("operation", opName),
 			slog.Int("status", resp.StatusCode),
 			slog.String("body", string(respBody)),
+			slog.String("request_id", getRequestIDFromContext(ctx)),
+			slog.Duration("duration", duration),
 		)
 		return nil, fmt.Errorf("%w: %s", ErrValidation, string(respBody))
 	case resp.StatusCode >= 500:
@@ -164,6 +180,8 @@ func doRequest[Req any, Resp any](
 			slog.String("operation", opName),
 			slog.Int("status", resp.StatusCode),
 			slog.String("body", string(respBody)),
+			slog.String("request_id", getRequestIDFromContext(ctx)),
+			slog.Duration("duration", duration),
 		)
 		return nil, ErrServiceUnavailable
 	}
@@ -175,6 +193,14 @@ func doRequest[Req any, Resp any](
 	}
 
 	return &result, nil
+}
+
+// getRequestIDFromContext extrai request_id do contexto Go.
+func getRequestIDFromContext(ctx context.Context) string {
+	if id, ok := ctx.Value("request_id").(string); ok {
+		return id
+	}
+	return ""
 }
 
 // BaseURL retorna a URL base do cliente (util para testes).
