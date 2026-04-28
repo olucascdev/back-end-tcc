@@ -17,8 +17,12 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/tcc_db"
     REDIS_URL: str = "redis://localhost:6379/0"
     OPENAI_API_KEY: str = ""
+    EMBEDDING_MODEL: str = "text-embedding-3-small"
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_BUCKET: str = "documents"
+    CHUNK_SIZE: int = 1000
+    CHUNK_OVERLAP: int = 200
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}

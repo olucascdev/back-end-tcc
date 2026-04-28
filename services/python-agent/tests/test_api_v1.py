@@ -6,6 +6,7 @@ Verifica health endpoints e stubs de cada operacao com payload valido.
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -49,7 +50,50 @@ class TestHealthEndpoints:
 class TestDocumentsEndpoint:
     """Testes de processamento de documentos."""
 
-    def test_process_document_returns_processing(self, client: TestClient) -> None:
+    @patch("app.api.v1.endpoints.documents.update_document_status")
+    @patch("app.api.v1.endpoints.documents.PgVectorStore")
+    @patch("app.api.v1.endpoints.documents.OpenAIEmbedder")
+    @patch("app.api.v1.endpoints.documents.TextChunker")
+    @patch("app.api.v1.endpoints.documents.PDFExtractor")
+    @patch("app.api.v1.endpoints.documents.MinIOClient")
+    def test_process_document_returns_ready(
+        self,
+        mock_minio_cls,
+        mock_extractor_cls,
+        mock_chunker_cls,
+        mock_embedder_cls,
+        mock_store_cls,
+        mock_update_status,
+        client: TestClient,
+    ) -> None:
+        """Verifica pipeline completo retorna status ready."""
+        # Configura mocks minimos
+        mock_minio = MagicMock()
+        mock_minio.download_file.return_value = b"%PDF-1.4 fake"
+        mock_minio_cls.return_value = mock_minio
+
+        mock_extractor = MagicMock()
+        mock_extractor.extract_text.return_value = [
+            {"page_number": 1, "text": "Test content"}
+        ]
+        mock_extractor_cls.return_value = mock_extractor
+
+        mock_chunker = MagicMock()
+        mock_chunker.chunk_pages.return_value = [
+            {"text": "chunk", "page_number": 1, "chunk_index": 0}
+        ]
+        mock_chunker_cls.return_value = mock_chunker
+
+        mock_embedder = MagicMock()
+        mock_embedder.embed_texts.return_value = [[0.1] * 1536]
+        mock_embedder_cls.return_value = mock_embedder
+
+        mock_store = MagicMock()
+        mock_store.insert_embeddings.return_value = 1
+        mock_store_cls.return_value = mock_store
+
+        mock_update_status.return_value = None
+
         payload = {
             "project_id": str(uuid4()),
             "document_id": str(uuid4()),
@@ -59,8 +103,9 @@ class TestDocumentsEndpoint:
         res = client.post("/api/v1/documents/process-document", json=payload)
         assert res.status_code == 200
         data = res.json()
-        assert data["status"] == "processing"
+        assert data["status"] == "ready"
         assert "document_id" in data
+        assert data["chunks_count"] == 1
 
 
 # ---------------------------------------------------------------------------
