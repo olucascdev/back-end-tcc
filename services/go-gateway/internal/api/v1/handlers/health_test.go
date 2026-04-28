@@ -5,23 +5,41 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
-	v1 "github.com/olucasdev/tcc/go-gateway/internal/api/v1"
-	"github.com/olucasdev/tcc/go-gateway/internal/config"
+	"github.com/olucasdev/tcc/go-gateway/internal/client/python"
+	"github.com/olucasdev/tcc/go-gateway/internal/middleware"
 )
 
 func setupTestRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
-	cfg := &config.Config{
-		ServerPort:     "8080",
-		PythonAgentURL: "http://localhost:8000",
-		RequestTimeout: 30000000000, // 30s
-	}
 	r := gin.New()
 	r.Use(gin.Recovery())
-	v1.Register(r, cfg)
+	r.Use(middleware.RequestID())
+
+	// Client apontando para URL inexistente (health nao depende do Python)
+	client := python.NewClient("http://localhost:8000", 30*time.Second)
+
+	v1Group := r.Group("/api/v1")
+	{
+		health := v1Group.Group("/health")
+		{
+			health.GET("", Health)
+			health.GET("/ready", Ready)
+		}
+		docs := v1Group.Group("/documents")
+		{
+			docs.POST("/process", ProxyProcessDocument(client))
+			docs.POST("/summarize", ProxySummarize(client))
+			docs.POST("/compare", ProxyCompare(client))
+		}
+		chat := v1Group.Group("/chat")
+		{
+			chat.POST("", ProxyChat(client))
+		}
+	}
 	return r
 }
 

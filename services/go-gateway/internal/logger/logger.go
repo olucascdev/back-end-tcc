@@ -5,7 +5,6 @@ package logger
 import (
 	"io"
 	"log/slog"
-	"os"
 	"time"
 )
 
