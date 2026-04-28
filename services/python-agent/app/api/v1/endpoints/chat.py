@@ -58,6 +58,12 @@ def chat(
             session_id=req.session_id,
             message=req.message,
         )
+        logger.info(
+            "Chat response: session_id=%s, sources=%d, request_id=%s",
+            response.session_id,
+            len(response.sources),
+            request_id,
+        )
         return response
     except LLMError as exc:
         logger.error(

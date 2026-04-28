@@ -72,12 +72,16 @@ def _mock_chunks(project_id: str, count: int = 3) -> list[dict]:
 class TestRAGServiceWithContext:
     """Testes do RAGService quando ha contexto relevante."""
 
+    @patch("app.domain.rag_service.conversation_repository")
+    @patch("app.domain.rag_service.session_repository")
     @patch("app.domain.rag_service.PgVectorStore")
     @patch("app.domain.rag_service.OpenAIEmbedder")
     def test_chat_returns_answer_with_sources(
         self,
         mock_embedder_cls,
         mock_store_cls,
+        mock_session_repo,
+        mock_conv_repo,
         project_id,
         session_id,
     ) -> None:
@@ -93,6 +97,15 @@ class TestRAGServiceWithContext:
         mock_store = MagicMock()
         mock_store.search_similar_by_project.return_value = _mock_chunks(project_id)
         mock_store_cls.return_value = mock_store
+
+        # Mock repositories
+        mock_session_repo.get_or_create_session.return_value = {
+            "session_id": session_id,
+            "project_id": project_id,
+            "memory": {},
+            "created_at": None,
+        }
+        mock_conv_repo.get_conversation_history.return_value = []
 
         service = RAGService()
         result = service.chat(
@@ -117,16 +130,22 @@ class TestRAGServiceWithContext:
             "Qual o objetivo deste documento?"
         )
         mock_store.search_similar_by_project.assert_called_once()
+        mock_session_repo.get_or_create_session.assert_called_once()
+        assert mock_conv_repo.save_message.call_count == 2  # user + assistant
 
+    @patch("app.domain.rag_service.conversation_repository")
+    @patch("app.domain.rag_service.session_repository")
     @patch("app.domain.rag_service.PgVectorStore")
     @patch("app.domain.rag_service.OpenAIEmbedder")
-    def test_chat_preserves_session_history(
+    def test_chat_persists_session_history(
         self,
         mock_embedder_cls,
         mock_store_cls,
+        mock_session_repo,
+        mock_conv_repo,
         project_id,
     ) -> None:
-        """Historico da sessao e preservado entre chamadas."""
+        """Historico da sessao e persistido no banco entre chamadas."""
         from app.domain.rag_service import RAGService
 
         mock_embedder = MagicMock()
@@ -137,6 +156,14 @@ class TestRAGServiceWithContext:
         mock_store = MagicMock()
         mock_store.search_similar_by_project.return_value = _mock_chunks(project_id)
         mock_store_cls.return_value = mock_store
+
+        mock_session_repo.get_or_create_session.return_value = {
+            "session_id": "session-history-test",
+            "project_id": project_id,
+            "memory": {},
+            "created_at": None,
+        }
+        mock_conv_repo.get_conversation_history.return_value = []
 
         service = RAGService()
         session = "session-history-test"
@@ -149,7 +176,22 @@ class TestRAGServiceWithContext:
         )
         assert result1.session_id == session
 
-        # Segunda chamada — historico deve incluir primeira troca
+        # Segunda chamada — historico deve ser carregado do banco
+        mock_conv_repo.get_conversation_history.return_value = [
+            {
+                "role": "user",
+                "content": "Pergunta 1",
+                "sources": [],
+                "created_at": None,
+            },
+            {
+                "role": "assistant",
+                "content": "Resposta 1",
+                "sources": [],
+                "created_at": None,
+            },
+        ]
+
         result2 = service.chat(
             project_id=project_id,
             session_id=session,
@@ -157,25 +199,23 @@ class TestRAGServiceWithContext:
         )
         assert result2.session_id == session
 
-        # Verifica que historico tem 4 mensagens (2 user + 2 assistant)
-        history = service._session_history.get_history(session)
-        assert len(history) == 4
-        assert history[0]["role"] == "user"
-        assert history[0]["content"] == "Pergunta 1"
-        assert history[1]["role"] == "assistant"
-        assert history[2]["role"] == "user"
-        assert history[2]["content"] == "Pergunta 2"
+        # Verifica que save_message foi chamado 4 vezes (2 user + 2 assistant)
+        assert mock_conv_repo.save_message.call_count == 4
 
 
 class TestRAGServiceWithoutContext:
     """Testes do RAGService quando nao ha contexto relevante."""
 
+    @patch("app.domain.rag_service.conversation_repository")
+    @patch("app.domain.rag_service.session_repository")
     @patch("app.domain.rag_service.PgVectorStore")
     @patch("app.domain.rag_service.OpenAIEmbedder")
     def test_chat_returns_limitation_when_no_chunks(
         self,
         mock_embedder_cls,
         mock_store_cls,
+        mock_session_repo,
+        mock_conv_repo,
         project_id,
         session_id,
     ) -> None:
@@ -191,6 +231,14 @@ class TestRAGServiceWithoutContext:
         mock_store.search_similar_by_project.return_value = []
         mock_store_cls.return_value = mock_store
 
+        mock_session_repo.get_or_create_session.return_value = {
+            "session_id": session_id,
+            "project_id": project_id,
+            "memory": {},
+            "created_at": None,
+        }
+        mock_conv_repo.get_conversation_history.return_value = []
+
         service = RAGService()
         result = service.chat(
             project_id=project_id,
@@ -202,12 +250,19 @@ class TestRAGServiceWithoutContext:
         assert result.sources == []
         assert result.session_id == session_id
 
+        # Verifica que mensagem de limitacao foi persistida
+        assert mock_conv_repo.save_message.call_count == 2  # user + assistant
+
+    @patch("app.domain.rag_service.conversation_repository")
+    @patch("app.domain.rag_service.session_repository")
     @patch("app.domain.rag_service.PgVectorStore")
     @patch("app.domain.rag_service.OpenAIEmbedder")
     def test_chat_returns_limitation_when_low_score(
         self,
         mock_embedder_cls,
         mock_store_cls,
+        mock_session_repo,
+        mock_conv_repo,
         project_id,
         session_id,
     ) -> None:
@@ -219,10 +274,17 @@ class TestRAGServiceWithoutContext:
         mock_embedder._use_mock = True
         mock_embedder_cls.return_value = mock_embedder
 
-        # Store ja filtra por min_score; retorna vazio quando tudo esta abaixo
         mock_store = MagicMock()
         mock_store.search_similar_by_project.return_value = []
         mock_store_cls.return_value = mock_store
+
+        mock_session_repo.get_or_create_session.return_value = {
+            "session_id": session_id,
+            "project_id": project_id,
+            "memory": {},
+            "created_at": None,
+        }
+        mock_conv_repo.get_conversation_history.return_value = []
 
         service = RAGService()
         result = service.chat(
@@ -238,12 +300,16 @@ class TestRAGServiceWithoutContext:
 class TestRAGServiceSourceFormat:
     """Testes do formato de fontes na resposta."""
 
+    @patch("app.domain.rag_service.conversation_repository")
+    @patch("app.domain.rag_service.session_repository")
     @patch("app.domain.rag_service.PgVectorStore")
     @patch("app.domain.rag_service.OpenAIEmbedder")
     def test_sources_have_correct_format(
         self,
         mock_embedder_cls,
         mock_store_cls,
+        mock_session_repo,
+        mock_conv_repo,
         project_id,
         session_id,
     ) -> None:
@@ -272,6 +338,14 @@ class TestRAGServiceSourceFormat:
         mock_store.search_similar_by_project.return_value = chunks
         mock_store_cls.return_value = mock_store
 
+        mock_session_repo.get_or_create_session.return_value = {
+            "session_id": session_id,
+            "project_id": project_id,
+            "memory": {},
+            "created_at": None,
+        }
+        mock_conv_repo.get_conversation_history.return_value = []
+
         service = RAGService()
         result = service.chat(
             project_id=project_id,
@@ -290,6 +364,8 @@ class TestRAGServiceSourceFormat:
 class TestRAGServiceLLMError:
     """Testes de erro ao chamar LLM."""
 
+    @patch("app.domain.rag_service.conversation_repository")
+    @patch("app.domain.rag_service.session_repository")
     @patch("openai.OpenAI")
     @patch("app.domain.rag_service.PgVectorStore")
     @patch("app.domain.rag_service.OpenAIEmbedder")
@@ -298,6 +374,8 @@ class TestRAGServiceLLMError:
         mock_embedder_cls,
         mock_store_cls,
         mock_openai_cls,
+        mock_session_repo,
+        mock_conv_repo,
         project_id,
         session_id,
     ) -> None:
@@ -317,6 +395,14 @@ class TestRAGServiceLLMError:
         mock_client = MagicMock()
         mock_client.chat.completions.create.side_effect = Exception("API error")
         mock_openai_cls.return_value = mock_client
+
+        mock_session_repo.get_or_create_session.return_value = {
+            "session_id": session_id,
+            "project_id": project_id,
+            "memory": {},
+            "created_at": None,
+        }
+        mock_conv_repo.get_conversation_history.return_value = []
 
         settings = Settings(OPENAI_API_KEY="fake-key")
         service = RAGService(settings=settings)

@@ -8,6 +8,7 @@ Responsavel por:
 - Chamar LLM com prompt do sistema + contexto + pergunta
 - Extrair fontes dos chunks usados
 - Retornar resposta estruturada com citacoes
+- Persistir sessao e historico no banco de dados
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import logging
 from typing import Any
 
 from app.core.config import Settings
+from app.infrastructure.database import conversation_repository, session_repository
 from app.infrastructure.database.pgvector_store import PgVectorStore
 from app.infrastructure.embeddings.openai_embedder import OpenAIEmbedder
 from app.schemas.contracts_v1 import ChatResponse, Source
@@ -32,31 +34,6 @@ NO_CONTEXT_ANSWER = (
 )
 
 
-class SessionHistory:
-    """Armazena historico de mensagens por sessao em memoria.
-
-    Em producao, substituir por Redis ou banco de dados.
-    """
-
-    def __init__(self) -> None:
-        # session_id -> lista de mensagens {role, content}
-        self._store: dict[str, list[dict[str, str]]] = {}
-
-    def add_message(self, session_id: str, role: str, content: str) -> None:
-        """Adiciona mensagem ao historico da sessao."""
-        if session_id not in self._store:
-            self._store[session_id] = []
-        self._store[session_id].append({"role": role, "content": content})
-
-    def get_history(self, session_id: str) -> list[dict[str, str]]:
-        """Retorna historico completo da sessao."""
-        return self._store.get(session_id, [])
-
-    def clear(self, session_id: str) -> None:
-        """Limpa historico de uma sessao."""
-        self._store.pop(session_id, None)
-
-
 class RAGService:
     """Orquestra fluxo RAG: embedding → busca → contexto → LLM → resposta."""
 
@@ -65,12 +42,10 @@ class RAGService:
         settings: Settings | None = None,
         embedder: OpenAIEmbedder | None = None,
         vector_store: PgVectorStore | None = None,
-        session_history: SessionHistory | None = None,
     ) -> None:
         self._settings = settings or Settings()
         self._embedder = embedder or OpenAIEmbedder(self._settings)
         self._vector_store = vector_store or PgVectorStore(self._settings)
-        self._session_history = session_history or SessionHistory()
 
     def chat(
         self,
@@ -81,13 +56,16 @@ class RAGService:
         """Processa pergunta do usuario com RAG e retorna resposta com fontes.
 
         Fluxo:
-        1. Gera embedding da pergunta
-        2. Busca chunks similares no pgvector (filtro project_id)
-        3. Se sem contexto relevante → retorna limitacao explicita
-        4. Monta contexto + prompt do sistema
-        5. Chama LLM
-        6. Extrai fontes dos chunks
-        7. Retorna ChatResponse
+        1. Garante sessao existente no banco
+        2. Salva mensagem do usuario no historico
+        3. Gera embedding da pergunta
+        4. Busca chunks similares no pgvector (filtro project_id)
+        5. Se sem contexto relevante → retorna limitacao explicita
+        6. Monta contexto + prompt do sistema
+        7. Chama LLM com historico recente
+        8. Extrai fontes dos chunks
+        9. Persiste resposta do assistant
+        10. Retorna ChatResponse
 
         Args:
             project_id: identificador do projeto para filtrar documentos.
@@ -97,13 +75,26 @@ class RAGService:
         Returns:
             ChatResponse com answer, sources e session_id.
         """
-        # Salva mensagem do usuario no historico
-        self._session_history.add_message(session_id, "user", message)
+        # 1. Garante sessao existente (cria se necessario)
+        session_repository.get_or_create_session(
+            session_id=session_id,
+            project_id=project_id,
+            settings=self._settings,
+        )
 
-        # 1. Gera embedding da pergunta
+        # 2. Salva mensagem do usuario no banco
+        conversation_repository.save_message(
+            session_id=session_id,
+            project_id=project_id,
+            role="user",
+            content=message,
+            settings=self._settings,
+        )
+
+        # 3. Gera embedding da pergunta
         query_embedding = self._embedder.embed_query(message)
 
-        # 2. Busca chunks similares
+        # 4. Busca chunks similares
         chunks = self._vector_store.search_similar_by_project(
             project_id=project_id,
             query_embedding=query_embedding,
@@ -111,7 +102,7 @@ class RAGService:
             min_score=MIN_RELEVANCE_SCORE,
         )
 
-        # 3. Sem contexto relevante → retorna limitacao
+        # 5. Sem contexto relevante → retorna limitacao
         if not chunks:
             logger.info(
                 "Sem contexto relevante para project_id=%s, message=%s",
@@ -119,26 +110,46 @@ class RAGService:
                 message[:80],
             )
             answer = NO_CONTEXT_ANSWER
-            self._session_history.add_message(session_id, "assistant", answer)
+
+            # Persiste resposta do assistant
+            conversation_repository.save_message(
+                session_id=session_id,
+                project_id=project_id,
+                role="assistant",
+                content=answer,
+                sources=[],
+                settings=self._settings,
+            )
+
             return ChatResponse(
                 answer=answer,
                 sources=[],
                 session_id=session_id,
             )
 
-        # 4. Monta contexto a partir dos chunks
+        # 6. Monta contexto a partir dos chunks
         context = self._build_context(chunks)
 
-        # 5. Monta prompt e chama LLM
+        # 7. Chama LLM com contexto e historico
         answer = self._call_llm(
-            context=context, question=message, session_id=session_id
+            context=context,
+            question=message,
+            session_id=session_id,
         )
 
-        # 6. Extrai fontes dos chunks
+        # 8. Extrai fontes dos chunks
         sources = self._extract_sources(chunks)
 
-        # Salva resposta no historico
-        self._session_history.add_message(session_id, "assistant", answer)
+        # 9. Persiste resposta do assistant com fontes
+        sources_data = [src.model_dump() for src in sources]
+        conversation_repository.save_message(
+            session_id=session_id,
+            project_id=project_id,
+            role="assistant",
+            content=answer,
+            sources=sources_data,
+            settings=self._settings,
+        )
 
         logger.info(
             "RAG completo: project_id=%s, session_id=%s, %d fontes",
@@ -185,28 +196,31 @@ class RAGService:
         """Chama LLM com contexto + pergunta e retorna resposta.
 
         Usa OpenAI API com fallback mock para desenvolvimento.
+        Carrega historico recente do banco para contexto da conversa.
 
         Args:
             context: contexto montado a partir dos chunks.
             question: pergunta original do usuario.
-            session_id: usado para incluir historico da sessao.
+            session_id: usado para carregar historico da sessao.
 
         Returns:
             Resposta gerada pelo LLM.
         """
-        # Monta historico da sessao para contexto adicional
-        history = self._session_history.get_history(session_id)
-        # Usa apenas as ultimas 6 mensagens (3 trocas) para nao estourar tokens
-        recent_history = history[-6:] if len(history) > 6 else history
+        # Carrega historico recente do banco (ultimas 6 mensagens = 3 trocas)
+        history = conversation_repository.get_conversation_history(
+            session_id=session_id,
+            limit=6,
+            settings=self._settings,
+        )
 
         # Monta mensagens para a API
         messages: list[dict[str, str]] = [
             {"role": "system", "content": self._settings.SYSTEM_PROMPT},
         ]
 
-        # Adiciona historico recente (excluindo a mensagem atual que ja foi salva)
-        for msg in recent_history[:-1]:  # ultima e a mensagem atual do user
-            messages.append(msg)
+        # Adiciona historico recente (excluindo a ultima que e a mensagem atual do user)
+        for msg in history[:-1]:
+            messages.append({"role": msg["role"], "content": msg["content"]})
 
         # Mensagem do usuario com contexto
         user_content = f"Contexto dos documentos:\n{context}\n\nPergunta: {question}"
