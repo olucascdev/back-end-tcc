@@ -1,0 +1,122 @@
+# =============================================================================
+# TCC Backend - Local Infrastructure
+# =============================================================================
+# Services: PostgreSQL (pgvector), Redis, MongoDB, MinIO
+# Network: backend-network (internal)
+# =============================================================================
+
+services:
+  # -------------------------------------------------------------------------
+  # PostgreSQL 15 with pgvector extension
+  # -------------------------------------------------------------------------
+  postgres:
+    image: ankane/pgvector:v0.5.1
+    container_name: tcc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tcc_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tcc_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-tcc_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tcc_user} -d ${POSTGRES_DB:-tcc_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+      start_interval: 2s
+
+  # -------------------------------------------------------------------------
+  # Redis 7
+  # -------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: tcc-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-tcc_redis_pass}
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-tcc_redis_pass}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # -------------------------------------------------------------------------
+  # MongoDB 7
+  # -------------------------------------------------------------------------
+  mongodb:
+    image: mongo:7
+    container_name: tcc-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-tcc_mongo_user}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-tcc_mongo_pass}
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # -------------------------------------------------------------------------
+  # MinIO (S3-compatible object storage)
+  # -------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: tcc-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-tcc_minio_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-tcc_minio_pass}
+    ports:
+      - "${MINIO_API_PORT:-9002}:9000"
+      - "${MINIO_CONSOLE_PORT:-9003}:9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+      start_interval: 2s
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  mongodb-data:
+    driver: local
+  minio-data:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  backend-network:
+    driver: bridge
