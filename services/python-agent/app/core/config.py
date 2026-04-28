@@ -24,5 +24,14 @@ class Settings(BaseSettings):
     MINIO_BUCKET: str = "documents"
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
+    # RAG / LLM settings
+    OPENAI_MODEL: str = "gpt-4o-mini"
+    MAX_CONTEXT_TOKENS: int = 4000
+    SYSTEM_PROMPT: str = (
+        "Voce e um assistente especializado em analisar documentos academicos. "
+        "Responda sempre com base no contexto fornecido. "
+        "Se a informacao nao estiver no contexto, informe que nao ha dados suficientes. "
+        "Cite as fontes utilizadas quando possivel."
+    )
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}

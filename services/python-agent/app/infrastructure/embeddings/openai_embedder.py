@@ -36,6 +36,30 @@ class OpenAIEmbedder:
             self._client = OpenAI(api_key=self._settings.OPENAI_API_KEY)
             self._model = self._settings.EMBEDDING_MODEL
 
+    def embed_query(self, text: str) -> list[float]:
+        """Gera embedding para uma unica string de consulta.
+
+        Args:
+            text: texto da pergunta ou consulta.
+
+        Returns:
+            Embedding como list[float].
+        """
+        if self._use_mock:
+            return self._mock_embed([text])[0]
+
+        try:
+            response = self._client.embeddings.create(
+                model=self._model,
+                input=text,
+            )
+            return response.data[0].embedding
+        except Exception as exc:
+            logger.error("Erro ao gerar embedding de consulta: %s", exc)
+            raise EmbeddingError(
+                f"Falha ao gerar embedding de consulta: {exc}"
+            ) from exc
+
     def embed_texts(self, texts: list[str], batch_size: int = 100) -> list[list[float]]:
         """Gera embeddings para uma lista de textos.
 

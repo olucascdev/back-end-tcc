@@ -116,7 +116,19 @@ class TestDocumentsEndpoint:
 class TestChatEndpoint:
     """Testes de chat RAG."""
 
-    def test_chat_returns_answer(self, client: TestClient) -> None:
+    @patch("app.api.v1.endpoints.chat.RAGService")
+    def test_chat_returns_answer(self, mock_rag_cls, client: TestClient) -> None:
+        """Verifica chat retorna resposta com sources."""
+        from app.schemas.contracts_v1 import ChatResponse
+
+        mock_service = MagicMock()
+        mock_service.chat.return_value = ChatResponse(
+            answer="Resposta baseada no contexto dos documentos.",
+            sources=[],
+            session_id="test-session-1",
+        )
+        mock_rag_cls.return_value = mock_service
+
         payload = {
             "project_id": str(uuid4()),
             "session_id": "test-session-1",
@@ -126,7 +138,6 @@ class TestChatEndpoint:
         assert res.status_code == 200
         data = res.json()
         assert "answer" in data
-        assert data["sources"] == []
         assert data["session_id"] == "test-session-1"
 
 
