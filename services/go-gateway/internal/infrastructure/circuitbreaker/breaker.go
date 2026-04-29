@@ -166,3 +166,21 @@ func (bg *BreakerGroup) State(opName string) gobreaker.State {
 	cb := bg.getOrCreate(opName)
 	return cb.State()
 }
+
+// AllStates retorna o estado de todos os breakers conhecidos como mapa de strings legiveis.
+// Operacoes devem ser fornecidas explicitamente pois o BreakerGroup nao mantem lista interna.
+func (bg *BreakerGroup) AllStates(operations []string) map[string]string {
+	states := make(map[string]string)
+	for _, op := range operations {
+		s := bg.State(op)
+		switch s {
+		case gobreaker.StateOpen:
+			states[op] = "open"
+		case gobreaker.StateHalfOpen:
+			states[op] = "half-open"
+		default:
+			states[op] = "closed"
+		}
+	}
+	return states
+}

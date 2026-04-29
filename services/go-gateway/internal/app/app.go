@@ -66,6 +66,7 @@ func Setup(cfg *config.Config) (*gin.Engine, func()) {
 	r.Use(middleware.CORS())         // CORS para desenvolvimento
 	r.Use(middleware.MetricsCollector()) // Metricas Prometheus
 	r.Use(middleware.RequestLogger())    // Logging estruturado JSON
+	r.Use(middleware.AlertMiddleware())  // Alertas de latencia e erro
 
 	// Endpoint de metricas Prometheus
 	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
@@ -127,6 +128,11 @@ func Setup(cfg *config.Config) (*gin.Engine, func()) {
 			slog.Info("closing semantic cache connection...")
 			semanticCache.Close()
 		}
+	}
+
+	// Aviso de seguranca: admin endpoints sem chave configurada
+	if cfg.AdminAPIKey == "" {
+		slog.Warn("ADMIN_API_KEY is empty — admin endpoints are unprotected. Set ADMIN_API_KEY in production.")
 	}
 
 	// Registrar routers v1 com fila de PDF, cliente Python compartilhado e cache semantico

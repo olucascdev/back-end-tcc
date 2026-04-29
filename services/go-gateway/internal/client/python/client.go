@@ -16,6 +16,7 @@ import (
 	v1 "github.com/olucasdev/tcc/go-gateway/internal/contracts/v1"
 	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/circuitbreaker"
 	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/retry"
+	"github.com/olucasdev/tcc/go-gateway/internal/logger"
 )
 
 // Erros sentinelas para classificacao de falhas upstream.
@@ -413,7 +414,7 @@ func doRequest[Req any, Resp any](
 		slog.Warn("python agent validation error",
 			slog.String("operation", opName),
 			slog.Int("status", resp.StatusCode),
-			slog.String("body", string(respBody)),
+			slog.String("body", string(logger.RedactBytes(respBody))),
 			slog.String("request_id", getRequestIDFromContext(ctx)),
 			slog.Duration("duration", duration),
 		)
@@ -423,7 +424,7 @@ func doRequest[Req any, Resp any](
 		slog.Error("python agent server error",
 			slog.String("operation", opName),
 			slog.Int("status", resp.StatusCode),
-			slog.String("body", string(respBody)),
+			slog.String("body", string(logger.RedactBytes(respBody))),
 			slog.String("request_id", getRequestIDFromContext(ctx)),
 			slog.Duration("duration", duration),
 		)
@@ -455,4 +456,15 @@ func (c *Client) BaseURL() string {
 // GetTimeout retorna o timeout configurado para uma operacao (util para testes).
 func (c *Client) GetTimeout(opName string) time.Duration {
 	return c.getTimeout(opName)
+}
+
+// BreakerStates retorna o estado atual de todos os circuit breakers conhecidos.
+// Retorna nil se o cliente nao possui circuit breakers configurados.
+// Operacoes monitoradas: chat, summarize, compare, process-document, health.
+func (c *Client) BreakerStates() map[string]string {
+	if c.breakers == nil {
+		return nil
+	}
+	ops := []string{"chat", "summarize", "compare", "process-document", "health"}
+	return c.breakers.AllStates(ops)
 }

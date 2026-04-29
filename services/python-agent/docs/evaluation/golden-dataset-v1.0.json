@@ -1,0 +1,50 @@
+{
+  "version": "1.0",
+  "seed": 42,
+  "model": "text-embedding-3-small",
+  "description": "Golden dataset v1.0 para avaliacao academica do pipeline RAG. Contem perguntas realistas sobre documentos academicos de areas diversas.",
+  "questions": [
+    {
+      "id": "q1",
+      "project_id": "test-project-1",
+      "question": "Qual e a principal metodologia utilizada nesta pesquisa?",
+      "expected_context_ids": ["doc1-chunk1", "doc1-chunk2"],
+      "reference_answer": "A principal metodologia utilizada e a pesquisa qualitativa de natureza exploratoria, com abordagem de estudo de caso multiplo. Os dados foram coletados por meio de entrevistas semiestruturadas com 15 participantes e analisados utilizando a tecnica de analise de conteudo de Bardin."
+    },
+    {
+      "id": "q2",
+      "project_id": "test-project-1",
+      "question": "Quais sao os principais resultados encontrados em relacao ao impacto da tecnologia na educacao?",
+      "expected_context_ids": ["doc1-chunk3", "doc1-chunk4", "doc2-chunk1"],
+      "reference_answer": "Os resultados indicam que o uso de tecnologias digitais na educacao aumentou o engajamento dos alunos em 35 por cento. Alem disso, houve melhora significativa nas notas de avaliacoes padronizadas, com acrescimo medio de 12 pontos percentuais. Porem, foi identificada uma disparidade no acesso a dispositivos entre alunos de diferentes niveis socioeconomicos."
+    },
+    {
+      "id": "q3",
+      "project_id": "test-project-2",
+      "question": "Como os autores definem o conceito de sustentabilidade corporativa no contexto do estudo?",
+      "expected_context_ids": ["doc3-chunk1", "doc3-chunk2"],
+      "reference_answer": "Os autores definem sustentabilidade corporativa como a integracao sistematica de praticas ambientais, sociais e de governanca (ESG) nas operacoes e estrategia de negocio da empresa. O conceito abrange tres dimensoes: ambiental (reducao de emissao de carbono e gestao de residuos), social (diversidade, inclusao e relacoes com a comunidade) e economica (transparencia financeira e criacao de valor de longo prazo)."
+    },
+    {
+      "id": "q4",
+      "project_id": "test-project-2",
+      "question": "Quais limitacoes os autores reconhecem em sua pesquisa?",
+      "expected_context_ids": ["doc3-chunk5"],
+      "reference_answer": "Os autores reconhecem tres limitacoes principais: primeiro, a amostra foi restrita a empresas de grande porte do setor financeiro, o que limita a generalizacao dos resultados para outros setores. Segundo, os dados sao transversais, nao permitindo inferencias causais. Terceiro, a coleta de dados foi baseada em autorrelato, o que pode introduzir vies de desejabilidade social."
+    },
+    {
+      "id": "q5",
+      "project_id": "test-project-3",
+      "question": "Qual e o framework teorico que fundamenta a analise de machine learning aplicada a saude?",
+      "expected_context_ids": ["doc4-chunk1", "doc4-chunk2", "doc4-chunk3"],
+      "reference_answer": "O framework teorico baseia-se na teoria de aprendizagem supervisionada combinada com principios de medicina baseada em evidencias. O estudo utiliza algoritmos de floresta aleatoria (Random Forest) e redes neurais convolucionais para classificacao de imagens medicas. A validacao segue o protocolo TRIPOD para modelos de predicao clinica, com validacao cruzada k-fold e metricas de desempenho como AUC-ROC, sensibilidade e especificidade."
+    },
+    {
+      "id": "q6",
+      "project_id": "test-project-3",
+      "question": "Quais sao as recomendacoes futuras sugeridas pelos pesquisadores?",
+      "expected_context_ids": ["doc4-chunk6", "doc5-chunk1"],
+      "reference_answer": "Os pesquisadores recomendam: expansao do dataset para incluir dados multi-institucionais, o que melhoraria a generalizacao do modelo; investigacao de tecnicas de aprendizagem federada para preservar a privacidade dos dados dos pacientes; desenvolvimento de interfaces explicaveis (XAI) para que medicos possam entender as decisoes do modelo; e realizacao de ensaios clinicos prospectivos para validar a eficacia do sistema em ambiente real de atendimento."
+    }
+  ]
+}

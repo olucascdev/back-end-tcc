@@ -38,6 +38,7 @@ type Config struct {
 	WebhookSecret               string
 	CacheTTL                    time.Duration
 	CacheEnabled                bool
+	AdminAPIKey                 string
 }
 
 // LoadConfig carrega configuracoes de variaveis de ambiente com defaults.
@@ -79,6 +80,7 @@ func LoadConfig() *Config {
 		WebhookSecret:          getEnv("WEBHOOK_SECRET", ""),
 		CacheTTL:               parseDurationWithFallback(getEnv("CACHE_TTL", ""), 0, 5*time.Minute),
 		CacheEnabled:           parseBool(getEnv("CACHE_ENABLED", "true")),
+		AdminAPIKey:            getEnv("ADMIN_API_KEY", ""),
 	}
 }
 

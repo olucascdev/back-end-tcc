@@ -15,6 +15,7 @@ import (
 	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/cache"
 	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/circuitbreaker"
 	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/queue"
+	"github.com/olucasdev/tcc/go-gateway/internal/logger"
 )
 
 // ProxyProcessDocument recebe requisicao de processamento de documento,
@@ -400,7 +401,7 @@ func handlePythonError(c *gin.Context, err error, operation string) {
 			slog.String("operation", operation),
 			slog.String("request_id", requestID),
 			slog.String("error_type", "service_unavailable"),
-			slog.String("error", err.Error()),
+			slog.String("error", logger.RedactString(err.Error())),
 		)
 		c.JSON(http.StatusBadGateway, gin.H{
 			"error": "upstream service unavailable",
@@ -421,7 +422,7 @@ func handlePythonError(c *gin.Context, err error, operation string) {
 			slog.String("operation", operation),
 			slog.String("request_id", requestID),
 			slog.String("error_type", "unexpected"),
-			slog.String("error", err.Error()),
+			slog.String("error", logger.RedactString(err.Error())),
 		)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "internal server error",

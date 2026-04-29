@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 import uuid
 from typing import Any
@@ -17,6 +18,51 @@ from typing import Any
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
+
+# Regex para identificar campos sensiveis em logs (chave=valor ou "chave": "valor")
+_SENSITIVE_PATTERN = re.compile(
+    r'((?:api_key|password|secret|token)\s*[=:]\s*)[^\s,"\'}\]]+',
+    re.IGNORECASE,
+)
+
+
+class RedactingFilter(logging.Filter):
+    """
+    Filtro de log que mascara campos sensiveis.
+
+    Substitui valores de campos como api_key, password, secret, token
+    por [REDACTED] para evitar vazamento de credenciais nos logs.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # Redact na mensagem principal
+        record.msg = _SENSITIVE_PATTERN.sub(r"\1[REDACTED]", str(record.msg))
+
+        # Redact em args se for string
+        if record.args:
+            if isinstance(record.args, dict):
+                record.args = {
+                    k: "[REDACTED]"
+                    if any(
+                        s in k.lower()
+                        for s in ("api_key", "password", "secret", "token")
+                    )
+                    else v
+                    for k, v in record.args.items()
+                }
+            elif isinstance(record.args, tuple):
+                record.args = tuple(
+                    "[REDACTED]"
+                    if isinstance(a, str)
+                    and any(
+                        s in a.lower()
+                        for s in ("api_key", "password", "secret", "token")
+                    )
+                    else a
+                    for a in record.args
+                )
+
+        return True
 
 
 class JSONFormatter(logging.Formatter):
@@ -54,7 +100,7 @@ class JSONFormatter(logging.Formatter):
 
 def setup_logging(level: str = "INFO") -> logging.Logger:
     """
-    Configura o logger raiz com formatter JSON.
+    Configura o logger raiz com formatter JSON e filtro de redacao.
 
     Args:
         level: Nivel de log (DEBUG, INFO, WARNING, ERROR, CRITICAL).
@@ -64,6 +110,8 @@ def setup_logging(level: str = "INFO") -> logging.Logger:
     """
     handler = logging.StreamHandler()
     handler.setFormatter(JSONFormatter())
+    # Adiciona filtro de redacao para mascarar campos sensiveis
+    handler.addFilter(RedactingFilter())
 
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, level.upper(), logging.INFO))

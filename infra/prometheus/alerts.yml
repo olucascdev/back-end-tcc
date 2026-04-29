@@ -1,0 +1,115 @@
+# Prometheus Alert Rules for TCC Backend
+#
+# Regras de alerta para monitoramento dos servicos public-indexer e python-agent.
+# Carregado pelo Prometheus via rule_files.
+
+groups:
+  - name: public-indexer-alerts
+    interval: 30s
+    rules:
+      # Alta taxa de falhas no indexer
+      - alert: PublicIndexerHighErrorRate
+        expr: |
+          rate(public_indexer_failures_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          service: public-indexer
+        annotations:
+          summary: "Alta taxa de falhas no public-indexer"
+          description: >
+            A taxa de falhas do public-indexer esta acima de 0.1/s nos ultimos 5 minutos.
+            Valor atual: {{ $value | humanize }} falhas/s.
+            Verifique logs do servico e conectividade com fontes externas.
+
+      # Latencia alta na execucao do indexer (p95 > 5min)
+      - alert: PublicIndexerHighLatency
+        expr: |
+          histogram_quantile(0.95, rate(public_indexer_run_duration_seconds_bucket[10m])) > 300
+        for: 10m
+        labels:
+          severity: warning
+          service: public-indexer
+        annotations:
+          summary: "Latencia alta no public-indexer (p95 > 5min)"
+          description: >
+            O percentil 95 da duracao das execucoes do indexer ultrapassou 5 minutos.
+            Valor atual: {{ $value | humanize }}s.
+            Possiveis causas: lentidao em fontes externas, gargalo de embeddings, lock contention.
+
+      # Contention no lock do scheduler
+      - alert: SchedulerLockContention
+        expr: |
+          rate(public_indexer_scheduler_lock_wait_seconds_sum[5m]) / rate(public_indexer_scheduler_lock_wait_seconds_count[5m]) > 30
+        for: 5m
+        labels:
+          severity: warning
+          service: public-indexer
+        annotations:
+          summary: "Contencao no lock do scheduler de indexacao"
+          description: >
+            O tempo medio de espera pelo lock do scheduler esta acima de 30 segundos.
+            Valor atual: {{ $value | humanize }}s.
+            Verifique se ha jobs travados ou concorrencia excessiva.
+
+  - name: python-agent-alerts
+    interval: 30s
+    rules:
+      # Alta taxa de erro no python-agent
+      - alert: PythonAgentHighErrorRate
+        expr: |
+          rate(http_requests_total{service="python-agent", status=~"5.."}[5m]) / rate(http_requests_total{service="python-agent"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: python-agent
+        annotations:
+          summary: "Alta taxa de erro no python-agent"
+          description: >
+            Mais de 5% das requisicoes ao python-agent estao retornando erro 5xx.
+            Valor atual: {{ $value | humanizePercentage }}.
+            Verifique logs, conectividade com OpenAI e disponibilidade do banco.
+
+      # Latencia alta no python-agent (p95 > 30s)
+      - alert: PythonAgentHighLatency
+        expr: |
+          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{service="python-agent"}[10m])) > 30
+        for: 10m
+        labels:
+          severity: warning
+          service: python-agent
+        annotations:
+          summary: "Latencia alta no python-agent (p95 > 30s)"
+          description: >
+            O percentil 95 da latencia do python-agent ultrapassou 30 segundos.
+            Valor atual: {{ $value | humanize }}s.
+            Possiveis causas: lentidao na API OpenAI, queries pesadas, cache miss.
+
+  - name: infrastructure-alerts
+    interval: 30s
+    rules:
+      # Servico indisponivel (health check falhando)
+      - alert: ServiceDown
+        expr: |
+          up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Servico {{ $labels.instance }} indisponivel"
+          description: >
+            O servico {{ $labels.job }} na instancia {{ $labels.instance }}
+            nao responde ha mais de 2 minutos.
+
+      # Uso de memoria alto
+      - alert: HighMemoryUsage
+        expr: |
+          process_resident_memory_bytes / 1024 / 1024 > 512
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Uso de memoria alto em {{ $labels.instance }}"
+          description: >
+            O processo esta usando mais de 512MB de memoria RSS.
+            Valor atual: {{ $value | humanize1024 }}B.

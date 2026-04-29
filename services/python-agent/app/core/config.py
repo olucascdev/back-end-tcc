@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     MINIO_BUCKET: str = "documents"
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
+    # Feature flags
+    ENABLE_PUBLIC_RETRIEVAL: bool = False
     # RAG / LLM settings
     OPENAI_MODEL: str = "gpt-4o-mini"
     MAX_CONTEXT_TOKENS: int = 4000

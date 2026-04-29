@@ -191,6 +191,62 @@ class PgVectorStore:
         )
         return results
 
+    def search_similar_public_library(
+        self,
+        query_embedding: list[float],
+        top_k: int = 5,
+        min_score: float = 0.7,
+    ) -> list[dict]:
+        """Busca chunks similares na biblioteca publica (acervo publico).
+
+        Filtra por source_type = 'public_library' no metadata JSONB.
+        Usa operador <-> (distancia L2) do pgvector e converte para
+        similaridade cosseno (1 - distance).
+
+        Args:
+            query_embedding: vetor de consulta gerado pelo embedder.
+            top_k: numero maximo de resultados.
+            min_score: similaridade minima para incluir resultado (0-1).
+
+        Returns:
+            Lista de dicts com content, metadata e similarity score,
+            ordenados por score descendente e filtrados por min_score.
+        """
+        search_sql = """
+            SELECT
+                content,
+                metadata,
+                embedding <-> %s::vector AS distance
+            FROM document_embeddings
+            WHERE metadata->>'source_type' = 'public_library'
+            ORDER BY distance ASC
+            LIMIT %s
+        """
+
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(search_sql, (query_embedding, top_k))
+                rows = cur.fetchall()
+
+        results = []
+        for content, metadata, distance in rows:
+            score = 1.0 - distance
+            if score >= min_score:
+                results.append(
+                    {
+                        "content": content,
+                        "metadata": metadata if isinstance(metadata, dict) else {},
+                        "score": score,
+                    }
+                )
+
+        logger.debug(
+            "Busca biblioteca publica: %d resultados (min_score=%.2f)",
+            len(results),
+            min_score,
+        )
+        return results
+
     def close(self) -> None:
         """Fecha o connection pool."""
         if self._pool is not None:

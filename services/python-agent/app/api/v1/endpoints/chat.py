@@ -49,17 +49,29 @@ def chat(
     start_time = time.perf_counter()
 
     logger.info(
-        "Chat request started: project_id=%s, session_id=%s, request_id=%s",
+        "Chat request started: project_id=%s, session_id=%s, retrieval_mode=%s, request_id=%s",
         req.project_id,
         req.session_id,
+        req.retrieval_mode,
         request_id,
     )
+
+    # Verifica feature flag para retrieval_mode project_plus_public
+    if (
+        req.retrieval_mode == "project_plus_public"
+        and not rag_service.public_retrieval_enabled
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="O modo de recuperacao project_plus_public nao esta habilitado.",
+        )
 
     try:
         response = rag_service.chat(
             project_id=str(req.project_id),
             session_id=req.session_id,
             message=req.message,
+            retrieval_mode=req.retrieval_mode,
         )
         duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(

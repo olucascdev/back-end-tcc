@@ -58,6 +58,20 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Headers de seguranca em todas as respostas
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        """Injeta headers de seguranca HTTP em todas as respostas."""
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        # HSTS apenas quando nao estiver em modo debug
+        if not settings.DEBUG:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
+        return response
+
     # Registra router v1
     app.include_router(v1_router, prefix="/api/v1")
 

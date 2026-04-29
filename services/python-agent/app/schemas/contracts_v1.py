@@ -9,7 +9,7 @@ em PT-BR quando necessario.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -27,6 +27,7 @@ class Source(BaseModel):
     page: int
     section: Optional[str] = None
     score: float
+    source_type: Literal["project_document", "public_library"] = "project_document"
 
 
 # ---------------------------------------------------------------------------
@@ -66,6 +67,10 @@ class ChatRequest(BaseModel):
     session_id: str
     message: str
     filters: Optional[dict] = None
+    retrieval_mode: str = Field(
+        default="project_only",
+        pattern="^(project_only|project_plus_public)$",
+    )
 
 
 class ChatResponse(BaseModel):

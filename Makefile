@@ -7,7 +7,8 @@
 .PHONY: help migrate-up migrate-up-postgres migrate-up-mongo \
         infra-up infra-down infra-clean test-migrations \
         lint-python format-python test-python \
-        lint-go test-go quality-check
+        lint-go test-go quality-check \
+        lint-indexer test-indexer dev-indexer
 
 # --- Variaveis ---
 POSTGRES_HOST ?= localhost
@@ -124,3 +125,15 @@ test-go: ## Executa testes Go
 	cd $(GO_SERVICE) && go test ./... -v
 
 quality-check: lint-python test-python lint-go test-go ## Executa todos os checks de qualidade (lint + test Python e Go)
+
+# --- Public Indexer ---
+INDEXER_SERVICE := services/public-indexer
+
+lint-indexer: ## Executa lint do public-indexer com ruff
+	ruff check $(INDEXER_SERVICE)
+
+test-indexer: ## Executa testes do public-indexer
+	pytest $(INDEXER_SERVICE)/tests -v
+
+dev-indexer: ## Executa public-indexer com hot-reload
+	cd $(INDEXER_SERVICE) && uvicorn app.main:app --reload --host 0.0.0.0 --port 8001

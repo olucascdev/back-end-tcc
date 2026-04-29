@@ -112,3 +112,24 @@ func UpdateCacheHitRatio(projectID string) {
 	ratio := hits / total
 	semanticCacheHitRatio.WithLabelValues(projectID).Set(ratio)
 }
+
+// GetGlobalHitRatio retorna a proporcao global de hits do cache semantico.
+// Formula: total_hits / (total_hits + total_misses). Se nenhum request, retorna 0.
+func GetGlobalHitRatio() float64 {
+	hitsMu.RLock()
+	defer hitsMu.RUnlock()
+
+	var totalHits, totalMisses float64
+	for _, h := range hitsByProject {
+		totalHits += h
+	}
+	for _, m := range missesByProject {
+		totalMisses += m
+	}
+
+	total := totalHits + totalMisses
+	if total == 0 {
+		return 0
+	}
+	return totalHits / total
+}

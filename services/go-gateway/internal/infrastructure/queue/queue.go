@@ -165,3 +165,9 @@ func (q *MemoryQueue) GetJob(jobID string) (*Job, bool) {
 	jobCopy := *job
 	return &jobCopy, true
 }
+
+// Depth retorna o numero atual de jobs aguardando no canal da fila.
+// Util para metricas internas e monitoramento de saude.
+func (q *MemoryQueue) Depth() int {
+	return len(q.ch)
+}

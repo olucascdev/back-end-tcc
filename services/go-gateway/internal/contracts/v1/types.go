@@ -14,10 +14,11 @@ import (
 // Source representa uma citacao de documento usada como fonte
 // em respostas de chat ou comparacao.
 type Source struct {
-	Document string  `json:"document"`
-	Page     int     `json:"page"`
-	Section  *string `json:"section,omitempty"`
-	Score    float64 `json:"score"`
+	Document   string  `json:"document"`
+	Page       int     `json:"page"`
+	Section    *string `json:"section,omitempty"`
+	Score      float64 `json:"score"`
+	SourceType string  `json:"source_type,omitempty"` // "project_document" | "public_library"
 }
 
 // ---------------------------------------------------------------------------
@@ -48,10 +49,11 @@ type ProcessDocumentResponse struct {
 
 // ChatRequest requisicao de chat com contexto RAG.
 type ChatRequest struct {
-	ProjectID uuid.UUID              `json:"project_id"`
-	SessionID string                 `json:"session_id"`
-	Message   string                 `json:"message"`
-	Filters   map[string]interface{} `json:"filters,omitempty"`
+	ProjectID      uuid.UUID              `json:"project_id"`
+	SessionID      string                 `json:"session_id"`
+	Message        string                 `json:"message"`
+	Filters        map[string]interface{} `json:"filters,omitempty"`
+	RetrievalMode  string                 `json:"retrieval_mode,omitempty"` // project_only | project_plus_public
 }
 
 // ChatResponse resposta do chat com citacoes.
