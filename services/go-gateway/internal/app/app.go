@@ -21,6 +21,12 @@ import (
 	"github.com/olucasdev/tcc/go-gateway/internal/middleware"
 )
 
+// rateLimiter define o contrato para implementacoes de rate limiting.
+// Tanto o Limiter (memoria) quanto o RedisLimiter devem implementa-lo.
+type rateLimiter interface {
+	Middleware() gin.HandlerFunc
+}
+
 // Setup inicializa o motor Gin com middlewares, routers, fila PDF e worker pool.
 // Retorna o engine e uma funcao de cleanup para encerrar recursos gracefulmente.
 func Setup(cfg *config.Config) (*gin.Engine, func()) {
@@ -33,8 +39,30 @@ func Setup(cfg *config.Config) (*gin.Engine, func()) {
 	// Middlewares globais
 	r.Use(gin.Recovery())            // Recover de panics
 	r.Use(middleware.RequestID())    // Tracking de requisicoes
-	limiter := ratelimit.New(cfg.RateLimitRequests, cfg.RateLimitBurst)
-	r.Use(limiter.Middleware())      // Rate limiting por usuario/IP
+
+	// Rate limiting: seleciona backend (memoria ou Redis) conforme config
+	var limiter rateLimiter
+	switch cfg.RateLimitBackend {
+	case "redis":
+		redisLimiter, err := ratelimit.NewRedisLimiter(cfg.RedisURL, cfg.RateLimitRequests, cfg.RateLimitBurst)
+		if err != nil {
+			slog.Warn("failed to initialize redis rate limiter, falling back to memory",
+				slog.String("error", err.Error()))
+			limiter = ratelimit.New(cfg.RateLimitRequests, cfg.RateLimitBurst)
+		} else {
+			limiter = redisLimiter
+			slog.Info("redis rate limiter enabled",
+				slog.Int("rps", cfg.RateLimitRequests),
+				slog.Int("burst", cfg.RateLimitBurst))
+		}
+	default:
+		limiter = ratelimit.New(cfg.RateLimitRequests, cfg.RateLimitBurst)
+		slog.Debug("in-memory rate limiter enabled",
+			slog.Int("rps", cfg.RateLimitRequests),
+			slog.Int("burst", cfg.RateLimitBurst))
+	}
+	r.Use(limiter.Middleware()) // Rate limiting por usuario/IP
+
 	r.Use(middleware.CORS())         // CORS para desenvolvimento
 	r.Use(middleware.MetricsCollector()) // Metricas Prometheus
 	r.Use(middleware.RequestLogger())    // Logging estruturado JSON

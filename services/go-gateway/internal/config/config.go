@@ -31,6 +31,7 @@ type Config struct {
 	RetryMaxDelay               time.Duration
 	RateLimitRequests           int
 	RateLimitBurst              int
+	RateLimitBackend            string
 	PDFWorkers                  int
 	PDFQueueSize                int
 	WebhookURL                  string
@@ -71,6 +72,7 @@ func LoadConfig() *Config {
 		RetryMaxDelay:          parseDuration(getEnv("RETRY_MAX_DELAY", "2s")),
 		RateLimitRequests:      parseInt(getEnv("RATE_LIMIT_REQUESTS", "10")),
 		RateLimitBurst:         parseInt(getEnv("RATE_LIMIT_BURST", "20")),
+		RateLimitBackend:       getEnv("RATE_LIMIT_BACKEND", "memory"),
 		PDFWorkers:             parseInt(getEnv("PDF_WORKERS", "3")),
 		PDFQueueSize:           parseInt(getEnv("PDF_QUEUE_SIZE", "100")),
 		WebhookURL:             getEnv("WEBHOOK_URL", ""),
