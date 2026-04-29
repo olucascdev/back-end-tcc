@@ -220,3 +220,139 @@
 - [ ] CI passa em PR (lint + test + build)
 - [ ] `scripts/smoke-test.sh` executa com sucesso
 - [ ] Documentação em `docs/fase-0-fundacao.md` (PT-BR) com contexto, decisões, e próximos passos
+
+---
+
+# Tasks — FASE 2: Resiliência e Escala do Go Gateway
+
+> Escopo: robustez operacional do gateway Go para chamadas ao Python agent, controle de consumo, processamento assíncrono de PDF e notificação de status ao BFF.
+> Cada item <= 1-2 dias de trabalho.
+
+## 7. Timeout por operação + política de idempotência
+
+### 7.1 Configuração de timeout por endpoint
+- [x] 7.1.1 Adicionar no `Config` timeouts separados para `chat`, `summarize`, `compare`, `process-document` e `health`
+- [x] 7.1.2 Definir defaults seguros por operação (ex.: chat 30s, process-document 60s)
+- [x] 7.1.3 Atualizar parser de env vars para aceitar durações por operação
+
+### 7.2 Uso de timeout no client Go -> Python
+- [x] 7.2.1 Refatorar `python.Client` para suportar timeout por operação
+- [x] 7.2.2 Garantir que cada método (`Chat`, `Summarize`, `Compare`, `ProcessDocument`) use seu timeout específico
+- [x] 7.2.3 Cobrir em teste unitário timeout correto por operação
+
+### 7.3 Política de idempotência
+- [x] 7.3.1 Definir matriz de idempotência por endpoint em `docs/` (quais aceitam retry automático)
+- [x] 7.3.2 Bloquear retry automático para `process-document` por padrão
+- [x] 7.3.3 Adicionar teste validando ausência de retry em operação não idempotente
+
+## 8. Circuit breaker para dependência Python
+
+### 8.1 Implementação base do circuit breaker
+- [x] 8.1.1 Escolher biblioteca de circuit breaker para Go e justificar em doc da feature
+- [x] 8.1.2 Implementar breaker por operação upstream no client Python
+- [x] 8.1.3 Parametrizar limiar de falhas, janela e cooldown por env
+
+### 8.2 Integração com handlers
+- [x] 8.2.1 Mapear estado `open` para resposta HTTP elegante sem chamada remota
+- [x] 8.2.2 Padronizar payload de erro para indisponibilidade por breaker aberto
+- [x] 8.2.3 Expor estado atual do breaker em endpoint de health/readiness (quando aplicável)
+
+### 8.3 Testes de estado
+- [x] 8.3.1 Testar transição `closed -> open` com falhas consecutivas
+- [x] 8.3.2 Testar transição `open -> half-open` após cooldown
+- [x] 8.3.3 Testar transição `half-open -> closed` em recuperação de upstream
+
+## 9. Retry com backoff exponencial (somente idempotentes)
+
+### 9.1 Política de retry
+- [x] 9.1.1 Implementar backoff exponencial com jitter
+- [x] 9.1.2 Restringir retry automático a `chat`, `summarize` e `compare`
+- [x] 9.1.3 Definir limites: tentativas máximas, timeout total e erros retryable
+
+### 9.2 Observabilidade de retry
+- [x] 9.2.1 Instrumentar contador de tentativas por operação
+- [x] 9.2.2 Instrumentar contador de falhas finais após esgotar retries
+- [x] 9.2.3 Registrar tentativa, atraso e erro em logs estruturados
+
+### 9.3 Testes
+- [x] 9.3.1 Validar sucesso após falha transitória em operação idempotente
+- [x] 9.3.2 Validar falha final após exceder máximo de tentativas
+- [x] 9.3.3 Validar que `process-document` não executa retry automático
+
+## 10. Rate limiting por usuário/projeto
+
+### 10.1 Middleware de limitação
+- [x] 10.1.1 Implementar token bucket por chave `user_id + project_id`
+- [x] 10.1.2 Implementar fallback por IP quando identificadores não estiverem presentes
+- [x] 10.1.3 Expor configuração de taxa e burst por env
+
+### 10.2 Contrato de erro 429
+- [x] 10.2.1 Padronizar resposta `429` com código e mensagem de limite excedido
+- [x] 10.2.2 Adicionar headers de limite (ex.: remaining/reset) quando aplicável
+- [x] 10.2.3 Garantir consistência de resposta entre endpoints
+
+### 10.3 Testes
+- [x] 10.3.1 Testar requests abaixo do limite (passam)
+- [x] 10.3.2 Testar requests acima do limite (bloqueiam com 429)
+- [x] 10.3.3 Testar isolamento entre usuários/projetos distintos
+
+## 11. Fila concorrente de processamento de PDF
+
+### 11.1 Modelo de fila e workers
+- [x] 11.1.1 Definir interface de fila para jobs de `process-document`
+- [x] 11.1.2 Implementar worker pool com goroutines/channels
+- [x] 11.1.3 Parametrizar concorrência e tamanho de buffer por env
+
+### 11.2 Ciclo de vida do job
+- [x] 11.2.1 Registrar status `pending` no enfileiramento
+- [x] 11.2.2 Atualizar status para `processing` no início da execução
+- [x] 11.2.3 Atualizar status para `ready` ou `error` ao finalizar
+
+### 11.3 Integração HTTP
+- [x] 11.3.1 Ajustar endpoint de `process-document` para resposta rápida de aceite
+- [x] 11.3.2 Garantir que fluxo de chat não dependa do worker de ingestão
+- [x] 11.3.3 Cobrir em testes de integração cenário de pico de ingestão
+
+## 12. Webhook de status para BFF
+
+### 12.1 Contrato e segurança
+- [x] 12.1.1 Definir contrato final de webhook em `contracts/` (status, ids, timestamp, metadata)
+- [x] 12.1.2 Assinar payload com HMAC (secret por env)
+- [x] 12.1.3 Incluir header de idempotência no envio
+
+### 12.2 Entrega e confiabilidade
+- [x] 12.2.1 Implementar envio de webhook para transições finais (`ready`, `error`)
+- [x] 12.2.2 Implementar retry controlado para falhas transitórias no destino
+- [x] 12.2.3 Evitar reentrega destrutiva com chave idempotente
+
+### 12.3 Testes
+- [x] 12.3.1 Validar assinatura HMAC no payload gerado
+- [x] 12.3.2 Validar retries de entrega com destino intermitente
+- [x] 12.3.3 Validar deduplicação por idempotência
+
+## 13. Observabilidade de resiliência
+
+### 13.1 Métricas
+- [x] 13.1.1 Expor métricas de circuit breaker (estado e transições)
+- [x] 13.1.2 Expor métricas de fila (queue depth, tempo de processamento)
+- [x] 13.1.3 Expor métricas de rate limiting (requests bloqueadas)
+- [x] 13.1.4 Expor métricas de retry (tentativas e falhas finais)
+- [x] 13.1.5 Expor métricas de webhook (envios e latência)
+
+### 13.2 Logs estruturados
+- [x] 13.2.1 Garantir campos padrão: `request_id`, `project_id`, `user_id`, `operation`
+- [x] 13.2.2 Registrar eventos de breaker, retry, enqueue/dequeue e webhook
+- [x] 13.2.3 Evitar vazamento de dados sensíveis em logs
+
+## Critérios de Conclusão da Fase 2
+
+- [x] Timeouts por operação ativos e testados
+- [x] Circuit breaker ativo em chamadas Go -> Python com transições validadas
+- [x] Retry com backoff aplicado somente em operações idempotentes
+- [x] Rate limiting por usuário/projeto com resposta `429` padronizada
+- [x] Fila concorrente de PDF em produção local com workers estáveis
+- [x] Webhook de status (`ready`/`error`) entregue com assinatura e idempotência
+- [x] Métricas de resiliência disponíveis em `/metrics`
+- [x] Testes unitários e de integração da fase passando
+- [ ] Teste de carga básico executado com evidências em documentação
+- [x] Documentação da fase em `docs/*fase-2*.md` e `docs/*feature-2-*.md`

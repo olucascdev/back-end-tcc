@@ -16,6 +16,7 @@ import (
 
 	"github.com/olucasdev/tcc/go-gateway/internal/contracts/v1"
 	"github.com/olucasdev/tcc/go-gateway/internal/client/python"
+	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/queue"
 	"github.com/olucasdev/tcc/go-gateway/internal/middleware"
 )
 
@@ -31,13 +32,14 @@ func setupObservabilityTestRouter(pythonURL string) *gin.Engine {
 	// Endpoint de metricas
 	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
-	client := python.NewClient(pythonURL, 5*time.Second)
+	client := python.NewClient(pythonURL, map[string]time.Duration{"chat": 5 * time.Second, "process-document": 5 * time.Second}, nil)
+	q := queue.NewMemoryQueue(100)
 
 	v1Group := r.Group("/api/v1")
 	{
 		docs := v1Group.Group("/documents")
 		{
-			docs.POST("/process", ProxyProcessDocument(client))
+			docs.POST("/process", ProxyProcessDocument(client, q))
 		}
 		chat := v1Group.Group("/chat")
 		{

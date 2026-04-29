@@ -20,7 +20,7 @@ func setupTestRouter() *gin.Engine {
 	r.Use(middleware.RequestID())
 
 	// Client apontando para URL inexistente (health nao depende do Python)
-	client := python.NewClient("http://localhost:8000", 30*time.Second)
+	client := python.NewClient("http://localhost:8000", map[string]time.Duration{"health": 30 * time.Second}, nil)
 
 	v1Group := r.Group("/api/v1")
 	{
@@ -31,7 +31,7 @@ func setupTestRouter() *gin.Engine {
 		}
 		docs := v1Group.Group("/documents")
 		{
-			docs.POST("/process", ProxyProcessDocument(client))
+			docs.POST("/process", ProxyProcessDocument(client, nil))
 			docs.POST("/summarize", ProxySummarize(client))
 			docs.POST("/compare", ProxyCompare(client))
 		}

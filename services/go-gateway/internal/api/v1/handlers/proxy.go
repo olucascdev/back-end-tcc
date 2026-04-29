@@ -4,16 +4,22 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	v1 "github.com/olucasdev/tcc/go-gateway/internal/contracts/v1"
 	"github.com/olucasdev/tcc/go-gateway/internal/client/python"
+	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/circuitbreaker"
+	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/queue"
 )
 
-// ProxyProcessDocument encaminha requisicao de processamento de documento
-// para o agente Python via cliente HTTP real.
-func ProxyProcessDocument(client *python.Client) gin.HandlerFunc {
+// ProxyProcessDocument recebe requisicao de processamento de documento,
+// cria um job assincrono e o enfileira para processamento pelo worker pool.
+// Retorna 202 Accepted com job_id para consulta de status.
+// Se a fila estiver cheia, retorna 503 Service Unavailable.
+func ProxyProcessDocument(client *python.Client, q queue.Queue) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req v1.ProcessDocumentRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -22,32 +28,103 @@ func ProxyProcessDocument(client *python.Client) gin.HandlerFunc {
 		}
 
 		requestID := c.GetString("request_id")
-		slog.Info("proxy process-document started",
+		slog.Info("proxy process-document enqueueing",
 			slog.String("request_id", requestID),
 			slog.String("project_id", req.ProjectID.String()),
 			slog.String("document_id", req.DocumentID.String()),
 		)
 
-		resp, err := client.ProcessDocument(c.Request.Context(), &req)
-		if err != nil {
-			slog.Error("proxy process-document failed",
+		// Criar job assincrono com ID unico
+		job := &queue.Job{
+			ID:         uuid.New().String(),
+			DocumentID: req.DocumentID,
+			ProjectID:  req.ProjectID,
+			StorageKey: req.StorageKey,
+			Status:     queue.StatusPending,
+			CreatedAt:  time.Now().UTC(),
+			UpdatedAt:  time.Now().UTC(),
+		}
+
+		// Enfileirar job para processamento assincrono
+		if err := q.Enqueue(job); err != nil {
+			if errors.Is(err, queue.ErrQueueFull) {
+				slog.Warn("pdf queue full, rejecting request",
+					slog.String("request_id", requestID),
+					slog.String("project_id", req.ProjectID.String()),
+				)
+				c.JSON(http.StatusServiceUnavailable, gin.H{
+					"error": "pdf processing queue is full, please retry later",
+				})
+				return
+			}
+			slog.Error("failed to enqueue pdf job",
 				slog.String("request_id", requestID),
-				slog.String("project_id", req.ProjectID.String()),
-				slog.String("document_id", req.DocumentID.String()),
 				slog.String("error", err.Error()),
 			)
-			handlePythonError(c, err, "process-document")
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "internal server error",
+			})
 			return
 		}
 
-		slog.Info("proxy process-document completed",
+		slog.Info("pdf job enqueued successfully",
 			slog.String("request_id", requestID),
+			slog.String("job_id", job.ID),
 			slog.String("project_id", req.ProjectID.String()),
 			slog.String("document_id", req.DocumentID.String()),
-			slog.String("status", resp.Status),
 		)
 
-		c.JSON(http.StatusAccepted, resp)
+		// Retornar 202 com informacoes do job para consulta de status
+		c.JSON(http.StatusAccepted, gin.H{
+			"job_id":      job.ID,
+			"status":      job.Status,
+			"document_id": job.DocumentID.String(),
+			"project_id":  job.ProjectID.String(),
+		})
+	}
+}
+
+// GetJobStatus retorna o status atual de um job de processamento de documento.
+// Handler para GET /documents/jobs/:job_id.
+func GetJobStatus(q queue.Queue) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		jobID := c.Param("job_id")
+		requestID := c.GetString("request_id")
+
+		job, ok := q.GetJob(jobID)
+		if !ok {
+			slog.Info("job not found",
+				slog.String("request_id", requestID),
+				slog.String("job_id", jobID),
+			)
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "job not found",
+			})
+			return
+		}
+
+		slog.Info("job status retrieved",
+			slog.String("request_id", requestID),
+			slog.String("job_id", jobID),
+			slog.String("status", job.Status),
+		)
+
+		resp := gin.H{
+			"job_id":     job.ID,
+			"status":     job.Status,
+			"created_at": job.CreatedAt,
+			"updated_at": job.UpdatedAt,
+		}
+
+		// Incluir campos opcionais conforme status
+		if job.ErrorMessage != nil {
+			resp["error_message"] = *job.ErrorMessage
+		}
+		if job.Result != nil {
+			resp["result"] = job.Result
+		}
+
+		c.JSON(http.StatusOK, resp)
 	}
 }
 
@@ -165,6 +242,7 @@ func ProxyCompare(client *python.Client) gin.HandlerFunc {
 }
 
 // handlePythonError mapeia erros do cliente Python para status HTTP adequados.
+// - ErrCircuitOpen -> 503 Service Unavailable
 // - ErrTimeout -> 504 Gateway Timeout
 // - ErrServiceUnavailable -> 502 Bad Gateway
 // - ErrValidation -> 400 Bad Request (detalhes do Python)
@@ -175,6 +253,16 @@ func handlePythonError(c *gin.Context, err error, operation string) {
 	requestID := c.GetString("request_id")
 
 	switch {
+	case errors.Is(err, circuitbreaker.ErrCircuitOpen):
+		slog.Warn("circuit breaker open",
+			slog.String("operation", operation),
+			slog.String("request_id", requestID),
+			slog.String("error_type", "circuit_open"),
+		)
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "upstream service temporarily unavailable due to circuit breaker",
+		})
+
 	case errors.Is(err, python.ErrTimeout):
 		slog.Warn("python agent timeout",
 			slog.String("operation", operation),
