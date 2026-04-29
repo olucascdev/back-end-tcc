@@ -100,6 +100,32 @@ type CompareResponse struct {
 }
 
 // ---------------------------------------------------------------------------
+// ResearchGap – identificacao de lacunas de pesquisa
+// ---------------------------------------------------------------------------
+
+// ResearchGapRequest requisicao para identificar lacunas de pesquisa.
+type ResearchGapRequest struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	Theme     string    `json:"theme"`
+}
+
+// ResearchGapItem uma lacuna de pesquisa identificada com evidencias.
+type ResearchGapItem struct {
+	GapTitle          string   `json:"gap_title"`
+	WhyGap            string   `json:"why_gap"`
+	EvidenceSources   []Source `json:"evidence_sources"`
+	SuggestedQuestions []string `json:"suggested_questions"`
+	Confidence        string   `json:"confidence"`
+}
+
+// ResearchGapResponse resposta com lacunas de pesquisa identificadas.
+type ResearchGapResponse struct {
+	ProjectID uuid.UUID         `json:"project_id"`
+	Gaps      []ResearchGapItem `json:"gaps"`
+	CreatedAt time.Time         `json:"created_at"`
+}
+
+// ---------------------------------------------------------------------------
 // Webhook – notificacao de status de documento
 // ---------------------------------------------------------------------------
 

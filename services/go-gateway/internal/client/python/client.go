@@ -248,6 +248,57 @@ func (c *Client) Compare(ctx context.Context, req *v1.CompareRequest) (*v1.Compa
 	return result, err
 }
 
+// ResearchGaps solicita identificacao de lacunas de pesquisa ao agente Python.
+// A chamada e protegida por circuit breaker para evitar falhas em cascata.
+// Se retryPolicy estiver configurada, erros retryable sao retentados.
+func (c *Client) ResearchGaps(ctx context.Context, req *v1.ResearchGapRequest) (*v1.ResearchGapResponse, error) {
+	fn := func() (interface{}, error) {
+		return doRequest[v1.ResearchGapRequest, v1.ResearchGapResponse](
+			ctx, c, http.MethodPost, "/research/gaps", req, "research-gaps",
+		)
+	}
+
+	if c.breakers == nil && c.retryPolicy == nil {
+		res, err := fn()
+		if err != nil {
+			return nil, err
+		}
+		return res.(*v1.ResearchGapResponse), nil
+	}
+
+	if c.breakers == nil {
+		var result *v1.ResearchGapResponse
+		err := c.retryPolicy.Execute(ctx, "research-gaps", func() error {
+			res, err := fn()
+			if err != nil {
+				return err
+			}
+			result = res.(*v1.ResearchGapResponse)
+			return nil
+		})
+		return result, err
+	}
+
+	if c.retryPolicy == nil {
+		result, err := c.breakers.Execute("research-gaps", fn)
+		if err != nil {
+			return nil, err
+		}
+		return result.(*v1.ResearchGapResponse), nil
+	}
+
+	var result *v1.ResearchGapResponse
+	err := c.retryPolicy.Execute(ctx, "research-gaps", func() error {
+		res, err := c.breakers.Execute("research-gaps", fn)
+		if err != nil {
+			return err
+		}
+		result = res.(*v1.ResearchGapResponse)
+		return nil
+	})
+	return result, err
+}
+
 // doRequest executa chamada HTTP generica com tratamento de erro padronizado.
 // Cria contexto com deadline baseado no timeout da operacao.
 // Serializa req como JSON, envia para endpoint relativo, desserializa resposta.

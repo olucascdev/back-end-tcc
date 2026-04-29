@@ -32,6 +32,7 @@ func setupProxyTestRouter(pythonURL string) *gin.Engine {
 		"compare":          5 * time.Second,
 		"process-document": 5 * time.Second,
 		"health":           2 * time.Second,
+		"research-gaps":    5 * time.Second,
 	}, nil)
 
 	// Fila em memoria para testes de processamento de documento
@@ -44,6 +45,7 @@ func setupProxyTestRouter(pythonURL string) *gin.Engine {
 			docs.POST("/process", ProxyProcessDocument(client, q))
 			docs.POST("/summarize", ProxySummarize(client))
 			docs.POST("/compare", ProxyCompare(client))
+			docs.POST("/research/gaps", ProxyResearchGaps(client))
 		}
 		chat := v1Group.Group("/chat")
 		{
@@ -550,5 +552,137 @@ func TestGetJobStatus_NotFound(t *testing.T) {
 	}
 	if errResp["error"] != "job not found" {
 		t.Errorf("expected 'job not found' error, got %s", errResp["error"])
+	}
+}
+
+func TestProxyResearchGaps_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(v1.ResearchGapResponse{
+			ProjectID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+			Gaps: []v1.ResearchGapItem{
+				{
+					GapTitle:           "Lacuna sobre metodologias ativas",
+					WhyGap:             "Falta evidencia empirica.",
+					EvidenceSources:    []v1.Source{{Document: "doc1.pdf", Page: 1, Score: 0.92}},
+					SuggestedQuestions: []string{"Como melhorar engajamento?"},
+					Confidence:         "high",
+				},
+			},
+			CreatedAt: time.Now().UTC(),
+		})
+	}))
+	defer server.Close()
+
+	r := setupProxyTestRouter(server.URL)
+
+	body := strings.NewReader(`{
+		"project_id": "00000000-0000-0000-0000-000000000001",
+		"theme": "metodologias ativas"
+	}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/documents/research/gaps", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var resp v1.ResearchGapResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if len(resp.Gaps) != 1 {
+		t.Fatalf("expected 1 gap, got %d", len(resp.Gaps))
+	}
+	if resp.Gaps[0].GapTitle != "Lacuna sobre metodologias ativas" {
+		t.Errorf("expected gap_title, got %s", resp.Gaps[0].GapTitle)
+	}
+	if resp.Gaps[0].Confidence != "high" {
+		t.Errorf("expected confidence 'high', got %s", resp.Gaps[0].Confidence)
+	}
+}
+
+func TestProxyResearchGaps_EmptyGaps(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(v1.ResearchGapResponse{
+			ProjectID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+			Gaps:      []v1.ResearchGapItem{},
+			CreatedAt: time.Now().UTC(),
+		})
+	}))
+	defer server.Close()
+
+	r := setupProxyTestRouter(server.URL)
+
+	body := strings.NewReader(`{
+		"project_id": "00000000-0000-0000-0000-000000000001",
+		"theme": ""
+	}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/documents/research/gaps", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var resp v1.ResearchGapResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if len(resp.Gaps) != 0 {
+		t.Errorf("expected 0 gaps, got %d", len(resp.Gaps))
+	}
+}
+
+func TestProxyResearchGaps_Upstream502(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		w.Write([]byte(`{"error":"bad gateway"}`))
+	}))
+	defer server.Close()
+
+	r := setupProxyTestRouter(server.URL)
+
+	body := strings.NewReader(`{
+		"project_id": "00000000-0000-0000-0000-000000000001",
+		"theme": "tema"
+	}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/documents/research/gaps", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadGateway {
+		t.Errorf("expected status 502, got %d", w.Code)
+	}
+}
+
+func TestProxyResearchGaps_InvalidBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	r := setupProxyTestRouter(server.URL)
+
+	body := strings.NewReader(`{invalid json}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/documents/research/gaps", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
 	}
 }

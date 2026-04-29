@@ -346,3 +346,109 @@ func TestDocumentStatusWebhook_OmitEmpty(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// ResearchGapRequest
+// ---------------------------------------------------------------------------
+
+func TestResearchGapRequest_JSONRoundTrip(t *testing.T) {
+	req := ResearchGapRequest{
+		ProjectID: newUUID(),
+		Theme:     "inteligencia artificial",
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var req2 ResearchGapRequest
+	if err := json.Unmarshal(data, &req2); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if req2.Theme != req.Theme {
+		t.Errorf("theme mismatch")
+	}
+}
+
+func TestResearchGapRequest_EmptyTheme(t *testing.T) {
+	req := ResearchGapRequest{
+		ProjectID: newUUID(),
+		Theme:     "",
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var m map[string]interface{}
+	json.Unmarshal(data, &m)
+
+	if theme, ok := m["theme"].(string); !ok || theme != "" {
+		t.Errorf("theme should be empty string, got %v", m["theme"])
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ResearchGapResponse
+// ---------------------------------------------------------------------------
+
+func TestResearchGapResponse_JSONRoundTrip(t *testing.T) {
+	now := time.Now().UTC()
+	resp := ResearchGapResponse{
+		ProjectID: newUUID(),
+		Gaps: []ResearchGapItem{
+			{
+				GapTitle:           "Lacuna sobre metodologias ativas",
+				WhyGap:             "Falta evidencia empirica.",
+				EvidenceSources:    []Source{{Document: "doc1.pdf", Page: 1, Score: 0.92}},
+				SuggestedQuestions: []string{"Como melhorar engajamento?"},
+				Confidence:         "high",
+			},
+		},
+		CreatedAt: now,
+	}
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var resp2 ResearchGapResponse
+	if err := json.Unmarshal(data, &resp2); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if len(resp2.Gaps) != 1 {
+		t.Errorf("expected 1 gap, got %d", len(resp2.Gaps))
+	}
+	if resp2.Gaps[0].GapTitle != "Lacuna sobre metodologias ativas" {
+		t.Errorf("gap_title mismatch")
+	}
+	if resp2.Gaps[0].Confidence != "high" {
+		t.Errorf("confidence mismatch")
+	}
+	if len(resp2.Gaps[0].SuggestedQuestions) != 1 {
+		t.Errorf("expected 1 suggested question, got %d", len(resp2.Gaps[0].SuggestedQuestions))
+	}
+}
+
+func TestResearchGapResponse_EmptyGaps(t *testing.T) {
+	resp := ResearchGapResponse{
+		ProjectID: newUUID(),
+		Gaps:      []ResearchGapItem{},
+		CreatedAt: time.Now().UTC(),
+	}
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var resp2 ResearchGapResponse
+	if err := json.Unmarshal(data, &resp2); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if len(resp2.Gaps) != 0 {
+		t.Errorf("expected 0 gaps, got %d", len(resp2.Gaps))
+	}
+}

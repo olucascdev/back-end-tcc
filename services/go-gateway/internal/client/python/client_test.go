@@ -24,6 +24,7 @@ func testTimeouts() map[string]time.Duration {
 		"compare":          5 * time.Second,
 		"process-document": 5 * time.Second,
 		"health":           2 * time.Second,
+		"research-gaps":    5 * time.Second,
 	}
 }
 
@@ -576,5 +577,94 @@ func TestClient_ProcessDocument_NoRetry(t *testing.T) {
 	// ProcessDocument nunca aplica retry — apenas 1 chamada
 	if callCount != 1 {
 		t.Errorf("expected 1 call (no retry for process-document), got %d", callCount)
+	}
+}
+
+func TestClient_ResearchGaps_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/research/gaps" {
+			t.Errorf("expected path /research/gaps, got %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+
+		// Ler request para extrair project_id
+		var req v1.ResearchGapRequest
+		json.NewDecoder(r.Body).Decode(&req)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(v1.ResearchGapResponse{
+			ProjectID: req.ProjectID,
+			Gaps: []v1.ResearchGapItem{
+				{
+					GapTitle:           "Lacuna sobre IA",
+					WhyGap:             "Falta evidencia.",
+					EvidenceSources:    []v1.Source{{Document: "doc1.pdf", Page: 1, Score: 0.9}},
+					SuggestedQuestions: []string{"Como IA afeta educacao?"},
+					Confidence:         "high",
+				},
+			},
+			CreatedAt: time.Now().UTC(),
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, testTimeouts(), nil)
+
+	projID := uuid.New()
+	req := &v1.ResearchGapRequest{
+		ProjectID: projID,
+		Theme:     "inteligencia artificial",
+	}
+
+	ctx := context.Background()
+	resp, err := client.ResearchGaps(ctx, req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if resp.ProjectID != projID {
+		t.Errorf("expected ProjectID %s, got %s", projID, resp.ProjectID)
+	}
+	if len(resp.Gaps) != 1 {
+		t.Fatalf("expected 1 gap, got %d", len(resp.Gaps))
+	}
+	if resp.Gaps[0].GapTitle != "Lacuna sobre IA" {
+		t.Errorf("expected gap_title 'Lacuna sobre IA', got %s", resp.Gaps[0].GapTitle)
+	}
+	if resp.Gaps[0].Confidence != "high" {
+		t.Errorf("expected confidence 'high', got %s", resp.Gaps[0].Confidence)
+	}
+}
+
+func TestClient_ResearchGaps_EmptyGaps(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(v1.ResearchGapResponse{
+			ProjectID: uuid.New(),
+			Gaps:      []v1.ResearchGapItem{},
+			CreatedAt: time.Now().UTC(),
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, testTimeouts(), nil)
+
+	req := &v1.ResearchGapRequest{
+		ProjectID: uuid.New(),
+		Theme:     "",
+	}
+
+	ctx := context.Background()
+	resp, err := client.ResearchGaps(ctx, req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(resp.Gaps) != 0 {
+		t.Errorf("expected 0 gaps, got %d", len(resp.Gaps))
 	}
 }

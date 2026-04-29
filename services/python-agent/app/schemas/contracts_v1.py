@@ -121,6 +121,36 @@ class CompareResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# ResearchGap – identificacao de lacunas de pesquisa
+# ---------------------------------------------------------------------------
+
+
+class ResearchGapRequest(BaseModel):
+    """Requisicao para identificar lacunas de pesquisa em um projeto."""
+
+    project_id: UUID
+    theme: str = ""
+
+
+class ResearchGapItem(BaseModel):
+    """Uma lacuna de pesquisa identificada com evidencias e sugestoes."""
+
+    gap_title: str
+    why_gap: str
+    evidence_sources: list[Source]
+    suggested_questions: list[str]
+    confidence: str = Field(pattern="^(low|medium|high)$")
+
+
+class ResearchGapResponse(BaseModel):
+    """Resposta com lacunas de pesquisa identificadas."""
+
+    project_id: UUID
+    gaps: list[ResearchGapItem]
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+# ---------------------------------------------------------------------------
 # Webhook – notificacao de status de documento
 # ---------------------------------------------------------------------------
 

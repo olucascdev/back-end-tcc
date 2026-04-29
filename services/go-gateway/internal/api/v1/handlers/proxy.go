@@ -325,6 +325,44 @@ func ProxyCompare(client *python.Client) gin.HandlerFunc {
 	}
 }
 
+// ProxyResearchGaps encaminha requisicao de identificacao de lacunas de pesquisa
+// para o agente Python via cliente HTTP real.
+func ProxyResearchGaps(client *python.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req v1.ResearchGapRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+			return
+		}
+
+		requestID := c.GetString("request_id")
+		slog.Info("proxy research-gaps started",
+			slog.String("request_id", requestID),
+			slog.String("project_id", req.ProjectID.String()),
+			slog.String("theme", req.Theme),
+		)
+
+		resp, err := client.ResearchGaps(c.Request.Context(), &req)
+		if err != nil {
+			slog.Error("proxy research-gaps failed",
+				slog.String("request_id", requestID),
+				slog.String("project_id", req.ProjectID.String()),
+				slog.String("error", err.Error()),
+			)
+			handlePythonError(c, err, "research-gaps")
+			return
+		}
+
+		slog.Info("proxy research-gaps completed",
+			slog.String("request_id", requestID),
+			slog.String("project_id", req.ProjectID.String()),
+			slog.Int("gaps_count", len(resp.Gaps)),
+		)
+
+		c.JSON(http.StatusOK, resp)
+	}
+}
+
 // handlePythonError mapeia erros do cliente Python para status HTTP adequados.
 // - ErrCircuitOpen -> 503 Service Unavailable
 // - ErrTimeout -> 504 Gateway Timeout

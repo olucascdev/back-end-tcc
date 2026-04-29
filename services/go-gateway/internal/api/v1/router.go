@@ -33,6 +33,7 @@ func Register(r *gin.Engine, cfg *config.Config, q queue.Queue, client *python.C
 			docs.GET("/jobs/:job_id", handlers.GetJobStatus(q))
 			docs.POST("/summarize", handlers.ProxySummarize(client))
 			docs.POST("/compare", handlers.ProxyCompare(client))
+			docs.POST("/research/gaps", handlers.ProxyResearchGaps(client))
 		}
 
 		// Chat - interacao RAG
