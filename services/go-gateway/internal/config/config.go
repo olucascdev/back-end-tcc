@@ -5,6 +5,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -34,6 +35,8 @@ type Config struct {
 	PDFQueueSize                int
 	WebhookURL                  string
 	WebhookSecret               string
+	CacheTTL                    time.Duration
+	CacheEnabled                bool
 }
 
 // LoadConfig carrega configuracoes de variaveis de ambiente com defaults.
@@ -72,6 +75,8 @@ func LoadConfig() *Config {
 		PDFQueueSize:           parseInt(getEnv("PDF_QUEUE_SIZE", "100")),
 		WebhookURL:             getEnv("WEBHOOK_URL", ""),
 		WebhookSecret:          getEnv("WEBHOOK_SECRET", ""),
+		CacheTTL:               parseDurationWithFallback(getEnv("CACHE_TTL", ""), 0, 5*time.Minute),
+		CacheEnabled:           parseBool(getEnv("CACHE_ENABLED", "true")),
 	}
 }
 
@@ -137,15 +142,12 @@ func parseInt(val string) int {
 	return n
 }
 
-// parseIntWithDefault converte string para int com default explicito.
-// Se a string for vazia ou invalida, retorna o valor default fornecido.
-func parseIntWithDefault(val string, defaultVal int) int {
+// parseBool converte string para bool com fallback para default.
+// Valores verdadeiros: "true", "1", "yes", "on" (case-insensitive).
+func parseBool(val string) bool {
 	if val == "" {
-		return defaultVal
+		return true // default: cache habilitado
 	}
-	n, err := strconv.Atoi(val)
-	if err != nil {
-		return defaultVal
-	}
-	return n
+	lower := strings.ToLower(val)
+	return lower == "true" || lower == "1" || lower == "yes" || lower == "on"
 }

@@ -43,7 +43,7 @@ func setupObservabilityTestRouter(pythonURL string) *gin.Engine {
 		}
 		chat := v1Group.Group("/chat")
 		{
-			chat.POST("", ProxyChat(client))
+			chat.POST("", ProxyChat(client, nil))
 		}
 	}
 	return r

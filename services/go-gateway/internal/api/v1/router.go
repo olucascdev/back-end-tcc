@@ -7,26 +7,27 @@ import (
 	"github.com/olucasdev/tcc/go-gateway/internal/api/v1/handlers"
 	"github.com/olucasdev/tcc/go-gateway/internal/client/python"
 	"github.com/olucasdev/tcc/go-gateway/internal/config"
+	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/cache"
 	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/queue"
 )
 
 // Register registra todos os grupos de rota v1 no router Gin.
 // Recebe o pythonClient ja criado para compartilhar circuit breaker state com o worker pool.
-func Register(r *gin.Engine, cfg *config.Config, q queue.Queue, client *python.Client) {
+func Register(r *gin.Engine, cfg *config.Config, q queue.Queue, client *python.Client, semanticCache *cache.SemanticCache) {
 	_ = cfg // cfg mantido na assinatura para futuras extensoes
 
 	// Grupo v1 com prefixo /api/v1
-	v1 := r.Group("/api/v1")
+	v1Group := r.Group("/api/v1")
 	{
 		// Health checks - sem autenticacao
-		health := v1.Group("/health")
+		health := v1Group.Group("/health")
 		{
 			health.GET("", handlers.Health)
 			health.GET("/ready", handlers.Ready)
 		}
 
 		// Documents - processamento e operacoes
-		docs := v1.Group("/documents")
+		docs := v1Group.Group("/documents")
 		{
 			docs.POST("/process", handlers.ProxyProcessDocument(client, q))
 			docs.GET("/jobs/:job_id", handlers.GetJobStatus(q))
@@ -35,9 +36,9 @@ func Register(r *gin.Engine, cfg *config.Config, q queue.Queue, client *python.C
 		}
 
 		// Chat - interacao RAG
-		chat := v1.Group("/chat")
+		chat := v1Group.Group("/chat")
 		{
-			chat.POST("", handlers.ProxyChat(client))
+			chat.POST("", handlers.ProxyChat(client, semanticCache))
 		}
 	}
 }

@@ -9,6 +9,7 @@ import (
 	v1 "github.com/olucasdev/tcc/go-gateway/internal/contracts/v1"
 	"github.com/olucasdev/tcc/go-gateway/internal/client/python"
 	"github.com/olucasdev/tcc/go-gateway/internal/application/webhook"
+	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/cache"
 )
 
 // WorkerPool gerencia um pool de goroutines que processam jobs da fila
@@ -21,25 +22,28 @@ type WorkerPool struct {
 	ctx            context.Context
 	cancel         context.CancelFunc
 	webhookService *webhook.Service
+	semanticCache  *cache.SemanticCache
 }
 
 // NewWorkerPool cria um novo pool de workers com a fila e cliente Python fornecidos.
-func NewWorkerPool(queue Queue, client *python.Client, numWorkers int) *WorkerPool {
+func NewWorkerPool(queue Queue, client *python.Client, numWorkers int, semanticCache *cache.SemanticCache) *WorkerPool {
 	return &WorkerPool{
-		queue:      queue,
-		client:     client,
-		numWorkers: numWorkers,
+		queue:         queue,
+		client:        client,
+		numWorkers:    numWorkers,
+		semanticCache: semanticCache,
 	}
 }
 
 // NewWorkerPoolWithWebhook cria um pool de workers com servico de webhook
 // para notificacao de status de documento ao BFF.
-func NewWorkerPoolWithWebhook(queue Queue, client *python.Client, numWorkers int, webhookService *webhook.Service) *WorkerPool {
+func NewWorkerPoolWithWebhook(queue Queue, client *python.Client, numWorkers int, webhookService *webhook.Service, semanticCache *cache.SemanticCache) *WorkerPool {
 	return &WorkerPool{
 		queue:          queue,
 		client:         client,
 		numWorkers:     numWorkers,
 		webhookService: webhookService,
+		semanticCache:  semanticCache,
 	}
 }
 
@@ -142,6 +146,9 @@ func (wp *WorkerPool) processJob(workerID int, job *Job) {
 		// Enviar webhook de notificacao (best-effort, nao falha o job)
 		wp.sendWebhookWithRetry(job, StatusError, &errMsg)
 
+		// Invalidar cache do projeto apos processamento com erro
+		wp.maybeInvalidateCache(job)
+
 		return
 	}
 
@@ -164,6 +171,9 @@ func (wp *WorkerPool) processJob(workerID int, job *Job) {
 
 	// Enviar webhook de notificacao (best-effort, nao falha o job)
 	wp.sendWebhookWithRetry(job, StatusReady, nil)
+
+	// Invalidar cache do projeto apos processamento com sucesso
+	wp.maybeInvalidateCache(job)
 }
 
 // sendWebhookWithRetry envia webhook com retry exponencial simples.
@@ -209,4 +219,25 @@ func (wp *WorkerPool) sendWebhookWithRetry(job *Job, status string, errMsg *stri
 		slog.String("job_id", job.ID),
 		slog.String("document_id", job.DocumentID.String()),
 	)
+}
+
+// maybeInvalidateCache incrementa a versao do cache do projeto quando semanticCache
+// esta disponivel. Isso invalida respostas de chat cached para o projeto,
+// garantindo que novas consultas usem dados atualizados apos processamento de documento.
+func (wp *WorkerPool) maybeInvalidateCache(job *Job) {
+	if wp.semanticCache == nil {
+		return
+	}
+
+	if _, err := wp.semanticCache.IncrementProjectCacheVersion(wp.ctx, job.ProjectID.String()); err != nil {
+		slog.Warn("failed to increment project cache version",
+			slog.String("project_id", job.ProjectID.String()),
+			slog.String("error", err.Error()),
+		)
+	} else {
+		slog.Info("project cache version incremented",
+			slog.String("project_id", job.ProjectID.String()),
+			slog.String("job_id", job.ID),
+		)
+	}
 }

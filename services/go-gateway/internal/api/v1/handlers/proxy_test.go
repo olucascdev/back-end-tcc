@@ -47,7 +47,7 @@ func setupProxyTestRouter(pythonURL string) *gin.Engine {
 		}
 		chat := v1Group.Group("/chat")
 		{
-			chat.POST("", ProxyChat(client))
+			chat.POST("", ProxyChat(client, nil))
 		}
 	}
 	return r
@@ -268,7 +268,7 @@ func TestProxyChat_Timeout504(t *testing.T) {
 
 	v1Group := r.Group("/api/v1")
 	chat := v1Group.Group("/chat")
-	chat.POST("", ProxyChat(client))
+	chat.POST("", ProxyChat(client, nil))
 
 	body := strings.NewReader(`{
 		"project_id": "00000000-0000-0000-0000-000000000001",
@@ -377,7 +377,7 @@ func TestProxyChat_CircuitBreaker503(t *testing.T) {
 
 	v1Group := r.Group("/api/v1")
 	chat := v1Group.Group("/chat")
-	chat.POST("", ProxyChat(client))
+	chat.POST("", ProxyChat(client, nil))
 
 	// Requisicao deve retornar 503 sem chegar ao server
 	body := strings.NewReader(`{

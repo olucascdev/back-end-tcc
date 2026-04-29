@@ -12,6 +12,7 @@ import (
 	"github.com/olucasdev/tcc/go-gateway/internal/application/webhook"
 	"github.com/olucasdev/tcc/go-gateway/internal/client/python"
 	"github.com/olucasdev/tcc/go-gateway/internal/config"
+	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/cache"
 	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/circuitbreaker"
 	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/queue"
 	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/ratelimit"
@@ -71,6 +72,13 @@ func Setup(cfg *config.Config) (*gin.Engine, func()) {
 	// Inicializar cliente Python com timeouts, circuit breakers e retry policy
 	pythonClient := python.NewClientWithResilience(cfg.PythonAgentURL, timeouts, breakers, retryPolicy)
 
+	// Inicializar cache semantico Redis para respostas de chat
+	semanticCache, err := cache.NewSemanticCache(cfg.RedisURL, cfg.CacheTTL, cfg.CacheEnabled)
+	if err != nil {
+		slog.Warn("failed to initialize semantic cache, continuing without cache", slog.String("error", err.Error()))
+		semanticCache = nil
+	}
+
 	// Inicializar servico de webhook para notificacao de status ao BFF
 	webhookService := webhook.NewService(cfg.WebhookURL, cfg.WebhookSecret)
 	if webhookService.IsEnabled() {
@@ -80,17 +88,21 @@ func Setup(cfg *config.Config) (*gin.Engine, func()) {
 	}
 
 	// Criar e iniciar worker pool para processamento assincrono de PDFs
-	workerPool := queue.NewWorkerPoolWithWebhook(q, pythonClient, cfg.PDFWorkers, webhookService)
+	workerPool := queue.NewWorkerPoolWithWebhook(q, pythonClient, cfg.PDFWorkers, webhookService, semanticCache)
 	workerPool.Start()
 
-	// Funcao de cleanup para encerrar worker pool gracefulmente
+	// Funcao de cleanup para encerrar worker pool e cache gracefulmente
 	cleanup := func() {
 		slog.Info("stopping pdf worker pool...")
 		workerPool.Stop()
+		if semanticCache != nil {
+			slog.Info("closing semantic cache connection...")
+			semanticCache.Close()
+		}
 	}
 
-	// Registrar routers v1 com fila de PDF e cliente Python compartilhado
-	v1.Register(r, cfg, q, pythonClient)
+	// Registrar routers v1 com fila de PDF, cliente Python compartilhado e cache semantico
+	v1.Register(r, cfg, q, pythonClient, semanticCache)
 
 	return r, cleanup
 }

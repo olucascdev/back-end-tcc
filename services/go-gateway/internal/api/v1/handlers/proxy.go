@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +12,7 @@ import (
 
 	v1 "github.com/olucasdev/tcc/go-gateway/internal/contracts/v1"
 	"github.com/olucasdev/tcc/go-gateway/internal/client/python"
+	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/cache"
 	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/circuitbreaker"
 	"github.com/olucasdev/tcc/go-gateway/internal/infrastructure/queue"
 )
@@ -129,7 +131,8 @@ func GetJobStatus(q queue.Queue) gin.HandlerFunc {
 }
 
 // ProxyChat encaminha requisicao de chat RAG para o agente Python via cliente HTTP real.
-func ProxyChat(client *python.Client) gin.HandlerFunc {
+// Suporte a cache semantico Redis: consulta cache antes de chamar Python, armazena resposta apos sucesso.
+func ProxyChat(client *python.Client, semanticCache *cache.SemanticCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req v1.ChatRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -138,17 +141,82 @@ func ProxyChat(client *python.Client) gin.HandlerFunc {
 		}
 
 		requestID := c.GetString("request_id")
+		projectID := req.ProjectID.String()
 		slog.Info("proxy chat started",
 			slog.String("request_id", requestID),
-			slog.String("project_id", req.ProjectID.String()),
+			slog.String("project_id", projectID),
 			slog.String("session_id", req.SessionID),
 		)
+
+		// Tentar cache semantico antes de chamar Python
+		cacheKey := ""
+		if semanticCache != nil {
+			normalized := cache.NormalizeQuestion(req.Message)
+
+			// Obter versao atual do cache do projeto para invalidacao por documento
+			cacheVersion := 0
+			v, err := semanticCache.GetProjectCacheVersion(c.Request.Context(), projectID)
+			if err == nil {
+				cacheVersion = v
+			} else {
+				slog.Warn("failed to get project cache version, using fallback 0",
+					slog.String("project_id", projectID),
+					slog.String("error", err.Error()),
+				)
+			}
+
+			cacheKey = cache.BuildCacheKey(req.ProjectID, normalized, cacheVersion)
+
+			cachedResp, err := semanticCache.Get(c.Request.Context(), cacheKey)
+			if err == nil && cachedResp != nil {
+				// Cache hit — retornar resposta cached diretamente
+				// Extrair question_hash da chave de cache para logging
+				hashPart := extractHashFromCacheKey(cacheKey)
+
+				slog.Info("cache hit",
+					slog.String("cache_status", "hit"),
+					slog.String("cache_key", cacheKey),
+					slog.String("question_hash", hashPart),
+					slog.Int("cache_version", cacheVersion),
+					slog.String("request_id", requestID),
+					slog.String("project_id", projectID),
+				)
+				cache.RecordCacheHit(projectID)
+				cache.UpdateCacheHitRatio(projectID)
+				c.Header("X-Cache", "HIT")
+				c.JSON(http.StatusOK, cachedResp)
+				return
+			}
+
+			// Cache miss ou indisponivel — logar e prosseguir
+			if errors.Is(err, cache.ErrCacheMiss) {
+				slog.Info("cache miss",
+					slog.String("cache_status", "miss"),
+					slog.String("cache_key", cacheKey),
+					slog.String("request_id", requestID),
+					slog.String("project_id", projectID),
+				)
+				cache.RecordCacheMiss(projectID)
+				cache.UpdateCacheHitRatio(projectID)
+			} else if errors.Is(err, cache.ErrCacheUnavailable) {
+				slog.Warn("cache unavailable, bypassing",
+					slog.String("cache_status", "bypass"),
+					slog.String("cache_key", cacheKey),
+					slog.String("request_id", requestID),
+					slog.String("project_id", projectID),
+				)
+				cache.RecordCacheError(projectID, "get")
+			}
+		}
+
+		// Cache miss ou bypass — resposta nao sera cached
+		c.Header("X-Cache", "MISS")
 
 		resp, err := client.Chat(c.Request.Context(), &req)
 		if err != nil {
 			slog.Error("proxy chat failed",
 				slog.String("request_id", requestID),
-				slog.String("project_id", req.ProjectID.String()),
+				slog.String("project_id", projectID),
 				slog.String("session_id", req.SessionID),
 				slog.String("error", err.Error()),
 			)
@@ -156,15 +224,31 @@ func ProxyChat(client *python.Client) gin.HandlerFunc {
 			return
 		}
 
+		// Armazenar resposta no cache apos sucesso (fire-and-forget)
+		if semanticCache != nil && cacheKey != "" {
+			_ = semanticCache.Set(c.Request.Context(), cacheKey, resp)
+		}
+
 		slog.Info("proxy chat completed",
 			slog.String("request_id", requestID),
-			slog.String("project_id", req.ProjectID.String()),
+			slog.String("project_id", projectID),
 			slog.String("session_id", req.SessionID),
 			slog.Int("sources_count", len(resp.Sources)),
 		)
 
 		c.JSON(http.StatusOK, resp)
 	}
+}
+
+// extractHashFromCacheKey extrai o question_hash de uma chave de cache.
+// Formato esperado: "chat:{project_id}:{question_hash}:{version}"
+// Retorna a terceira parte (question_hash) ou string vazia se formato invalido.
+func extractHashFromCacheKey(cacheKey string) string {
+	parts := strings.Split(cacheKey, ":")
+	if len(parts) >= 3 {
+		return parts[2]
+	}
+	return ""
 }
 
 // ProxySummarize encaminha requisicao de resumo para o agente Python via cliente HTTP real.
