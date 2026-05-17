@@ -9,7 +9,7 @@ em PT-BR quando necessario.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -27,6 +27,7 @@ class Source(BaseModel):
     page: int
     section: Optional[str] = None
     score: float
+    source_type: Literal["project_document", "public_library"] = "project_document"
 
 
 # ---------------------------------------------------------------------------
@@ -66,6 +67,10 @@ class ChatRequest(BaseModel):
     session_id: str
     message: str
     filters: Optional[dict] = None
+    retrieval_mode: str = Field(
+        default="project_only",
+        pattern="^(project_only|project_plus_public)$",
+    )
 
 
 class ChatResponse(BaseModel):
@@ -117,6 +122,36 @@ class CompareResponse(BaseModel):
     project_id: UUID
     comparison: dict
     sources: list[Source]
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+# ---------------------------------------------------------------------------
+# ResearchGap – identificacao de lacunas de pesquisa
+# ---------------------------------------------------------------------------
+
+
+class ResearchGapRequest(BaseModel):
+    """Requisicao para identificar lacunas de pesquisa em um projeto."""
+
+    project_id: UUID
+    theme: str = ""
+
+
+class ResearchGapItem(BaseModel):
+    """Uma lacuna de pesquisa identificada com evidencias e sugestoes."""
+
+    gap_title: str
+    why_gap: str
+    evidence_sources: list[Source]
+    suggested_questions: list[str]
+    confidence: str = Field(pattern="^(low|medium|high)$")
+
+
+class ResearchGapResponse(BaseModel):
+    """Resposta com lacunas de pesquisa identificadas."""
+
+    project_id: UUID
+    gaps: list[ResearchGapItem]
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 

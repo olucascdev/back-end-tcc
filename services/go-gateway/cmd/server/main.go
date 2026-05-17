@@ -19,8 +19,8 @@ func main() {
 	// Carregar configuracoes de variaveis de ambiente
 	cfg := config.LoadConfig()
 
-	// Setup do router Gin
-	router := app.Setup(cfg)
+	// Setup do router Gin e recursos de background (fila PDF, worker pool)
+	router, cleanup := app.Setup(cfg)
 
 	// Configurar servidor HTTP com timeouts
 	srv := &http.Server{
@@ -49,6 +49,9 @@ func main() {
 	// Graceful shutdown com timeout de 10s para drenar conexoes ativas
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	// Encerrar worker pool e recursos de background antes do shutdown HTTP
+	cleanup()
 
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatalf("Server forced to shutdown: %v", err)

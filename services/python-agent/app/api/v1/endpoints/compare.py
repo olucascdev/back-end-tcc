@@ -1,13 +1,14 @@
 """
 Endpoints de comparacao de documentos.
 
-Compara dois ou mais documentos sob um tema especifico.
+Compara dois ou mais documentos sob um tema especifico usando CompareService.
 """
 
 from __future__ import annotations
 
 from fastapi import APIRouter
 
+from app.domain.compare_service import CompareService
 from app.schemas.contracts_v1 import CompareRequest, CompareResponse
 
 router = APIRouter()
@@ -17,16 +18,13 @@ router = APIRouter()
 def compare_documents(req: CompareRequest) -> CompareResponse:
     """Compara documentos sob um tema especifico.
 
-    Stub: retorna comparacao mock com sources vazias.
-    Implementacao real fara analise tematica cruzada via LLM.
+    Usa CompareService para buscar chunks relevantes no pgvector,
+    agrupar por documento, chamar LLM e retornar comparacao tematica
+    estruturada com similarities, differences e synthesis.
     """
-    return CompareResponse(
-        project_id=req.project_id,
-        comparison={
-            "theme": req.theme,
-            "similarities": "Pontos em comum mock entre os documentos.",
-            "differences": "Diferencas mock entre os documentos.",
-            "synthesis": "Sintese mock da comparacao tematica.",
-        },
-        sources=[],
+    service = CompareService()
+    return service.compare(
+        project_id=str(req.project_id),
+        document_ids=[str(doc_id) for doc_id in req.document_ids],
+        theme=req.theme,
     )

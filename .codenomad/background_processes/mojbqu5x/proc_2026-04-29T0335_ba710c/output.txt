@@ -1,0 +1,12 @@
+2026-04-29 00:35:08 [mock-agent] INFO Iniciando mock Python agent na porta 9000 com delay 50ms
+INFO:     Started server process [69932]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:9000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:57432 - "GET /health HTTP/1.1" 200 OK
+2026-04-29 00:35:29 [mock-agent] INFO Chat request #1: project_id=test-001, session_id=sess-1, message='What is the main objective?'
+INFO:     127.0.0.1:47756 - "POST /chat HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [69932]

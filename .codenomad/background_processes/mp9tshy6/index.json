@@ -1,0 +1,78 @@
+[
+  {
+    "id": "proc_2026-05-17T1400_150b41",
+    "workspaceId": "mp9tshy6",
+    "title": "Run test_config_base_url.py",
+    "command": "python3 -m pytest services/python-agent/tests/test_config_base_url.py -v --tb=short 2>&1",
+    "cwd": "/home/olucasdev/Documentos/estudos/back-end-tcc",
+    "status": "stopped",
+    "pid": 8886,
+    "startedAt": "2026-05-17T14:00:10.038Z",
+    "outputSizeBytes": 1947,
+    "exitCode": 0,
+    "stoppedAt": "2026-05-17T14:00:10.825Z"
+  },
+  {
+    "id": "proc_2026-05-17T1400_b25bd1",
+    "workspaceId": "mp9tshy6",
+    "title": "Run python-agent unit tests",
+    "command": "python3 -m pytest services/python-agent/tests/ \\\n  --ignore=services/python-agent/tests/test_e2e_smoke.py \\\n  --ignore=services/python-agent/tests/test_integration_db.py \\\n  --ignore=services/python-agent/tests/test_chat_rag.py \\\n  --ignore=services/python-agent/tests/test_chat_public_library.py \\\n  --ignore=services/python-agent/tests/test_session_persistence.py \\\n  --ignore=services/python-agent/tests/test_evaluation_pipeline.py \\\n  --ignore=services/python-agent/tests/test_api_v1.py \\\n  --ignore=services/python-agent/tests/test_process_document.py \\\n  -v --tb=short 2>&1",
+    "cwd": "/home/olucasdev/Documentos/estudos/back-end-tcc",
+    "status": "stopped",
+    "pid": 8994,
+    "startedAt": "2026-05-17T14:00:24.989Z",
+    "outputSizeBytes": 13199,
+    "exitCode": 0,
+    "stoppedAt": "2026-05-17T14:00:26.528Z"
+  },
+  {
+    "id": "proc_2026-05-17T1401_46847b",
+    "workspaceId": "mp9tshy6",
+    "title": "Git diff HEAD",
+    "command": "cd /home/olucasdev/Documentos/estudos/back-end-tcc && git diff HEAD --stat",
+    "cwd": "/home/olucasdev/Documentos/estudos/back-end-tcc",
+    "status": "stopped",
+    "pid": 9271,
+    "startedAt": "2026-05-17T14:01:44.751Z",
+    "outputSizeBytes": 690,
+    "exitCode": 0,
+    "stoppedAt": "2026-05-17T14:01:44.755Z"
+  },
+  {
+    "id": "proc_2026-05-17T1401_3787cf",
+    "workspaceId": "mp9tshy6",
+    "title": "Git log recent",
+    "command": "cd /home/olucasdev/Documentos/estudos/back-end-tcc && git log --oneline -15",
+    "cwd": "/home/olucasdev/Documentos/estudos/back-end-tcc",
+    "status": "stopped",
+    "pid": 9273,
+    "startedAt": "2026-05-17T14:01:45.404Z",
+    "outputSizeBytes": 1124,
+    "exitCode": 0,
+    "stoppedAt": "2026-05-17T14:01:45.408Z"
+  },
+  {
+    "id": "proc_2026-05-17T1401_9558cc",
+    "workspaceId": "mp9tshy6",
+    "title": "Git diff full",
+    "command": "cd /home/olucasdev/Documentos/estudos/back-end-tcc && git diff HEAD",
+    "cwd": "/home/olucasdev/Documentos/estudos/back-end-tcc",
+    "status": "stopped",
+    "pid": 9274,
+    "startedAt": "2026-05-17T14:01:50.012Z",
+    "outputSizeBytes": 7805,
+    "exitCode": 0,
+    "stoppedAt": "2026-05-17T14:01:50.019Z"
+  },
+  {
+    "id": "proc_2026-05-17T2142_1e3cb5",
+    "workspaceId": "mp9tshy6",
+    "title": "Python Agent Uvicorn",
+    "command": "cd /home/olucasdev/Documentos/estudos/back-end-tcc/services/python-agent && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000",
+    "cwd": "/home/olucasdev/Documentos/estudos/back-end-tcc",
+    "status": "running",
+    "pid": 351244,
+    "startedAt": "2026-05-17T21:42:22.441Z",
+    "outputSizeBytes": 0
+  }
+]

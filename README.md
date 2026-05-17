@@ -12,6 +12,12 @@ services/
 infra/                   # Infrastructure scripts and configs
 ```
 
+### Additional Capabilities
+
+- Evaluation pipeline for RAG academic metrics (faithfulness, relevancy, precision, recall)
+- Load benchmark and resilience testing endpoints
+- Quality gates and compliance reporting
+
 ## Stack
 
 | Component        | Technology              |
@@ -44,6 +50,13 @@ docker compose up -d
 
 # Check health status
 docker compose ps
+```
+
+### Validate Setup
+
+```bash
+# Run quality gate to validate environment and run tests
+scripts/quality-gate.sh
 ```
 
 ### Service Ports
@@ -82,6 +95,13 @@ Each service has its own README with setup instructions:
 
 Copy `.env.example` to `.env` and adjust values. Never commit real secrets.
 
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ADMIN_API_KEY` | API key for protecting admin endpoints | (required) |
+| `ENABLE_PUBLIC_RETRIEVAL` | Enable public library retrieval mode (`project_plus_public`) | `false` |
+| `ALERT_ENABLED` | Enable structured alerts for latency/error thresholds | `false` |
+| `ALERT_LATENCY_MS` | Latency threshold (ms) to trigger alerts | `5000` |
+
 ## Project Structure
 
 ```
@@ -99,3 +119,22 @@ back-end-tcc/
 ├── docs/                    # Technical documentation (PT-BR)
 └── openspec/                # OpenSpec change proposals
 ```
+
+## Phase 6: Quality, Evaluation and Hardening
+
+### Delivered Capabilities
+
+- Chat RAG with public library retrieval mode (`project_plus_public`) with feature flag
+- Academic evaluation pipeline with golden dataset (faithfulness, relevancy, precision, recall)
+- Load/resilience benchmark endpoints (p50/p95/p99 latency, throughput, error rate)
+- Admin authentication for sensitive endpoints
+- Log redaction for sensitive data
+- Structured alerts for latency and error rate thresholds
+- Complete test suites (unit, integration, e2e smoke)
+- Runbooks for incident response
+- Quality gate script with coverage thresholds
+
+### Documentation
+
+- Detailed technical docs: `docs/`
+- Run quality checks: `scripts/quality-gate.sh`

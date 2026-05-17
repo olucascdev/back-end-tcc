@@ -1,0 +1,10 @@
+ .codenomad/worktreeMap.json                              |  3 ++-
+ services/python-agent/.env.example                       |  3 +++
+ services/python-agent/README.md                          | 16 ++++++++++++++++
+ services/python-agent/app/core/config.py                 |  1 +
+ services/python-agent/app/domain/compare_service.py      |  8 ++++++--
+ services/python-agent/app/domain/rag_service.py          |  8 ++++++--
+ services/python-agent/app/domain/research_gap_service.py |  8 ++++++--
+ services/python-agent/app/domain/summarize_service.py    |  8 ++++++--
+ .../app/infrastructure/embeddings/openai_embedder.py     |  7 ++++++-
+ 9 files changed, 52 insertions(+), 10 deletions(-)

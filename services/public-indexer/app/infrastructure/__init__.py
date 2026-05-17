@@ -1,0 +1,1 @@
+# Infrastructure package — external clients

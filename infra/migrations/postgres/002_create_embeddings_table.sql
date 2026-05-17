@@ -11,10 +11,10 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- -------------------------------------------------------------------------
--- Tabela: embeddings
+-- Tabela: document_embeddings
 -- Vetores de embeddings extraidos de documentos processados
 -- -------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS embeddings (
+CREATE TABLE IF NOT EXISTS document_embeddings (
     id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     content     TEXT NOT NULL,
     embedding   vector(1536) NOT NULL,
@@ -27,8 +27,8 @@ CREATE TABLE IF NOT EXISTS embeddings (
 -- Operacao: cosine distance (<=>) — mais adequado para embeddings de texto
 -- Parametros: m=16 (balance entre memoria e precisao), ef_construction=64
 -- -------------------------------------------------------------------------
-CREATE INDEX IF NOT EXISTS idx_embeddings_embedding
-    ON embeddings
+CREATE INDEX IF NOT EXISTS idx_document_embeddings_embedding
+    ON document_embeddings
     USING hnsw (embedding vector_cosine_ops)
     WITH (m = 16, ef_construction = 64);
 
@@ -37,9 +37,9 @@ CREATE INDEX IF NOT EXISTS idx_embeddings_embedding
 -- -------------------------------------------------------------------------
 
 -- Indice B-tree no campo project_id extraido do JSONB (consultas diretas)
-CREATE INDEX IF NOT EXISTS idx_embeddings_project_id
-    ON embeddings ((metadata->>'project_id'));
+CREATE INDEX IF NOT EXISTS idx_document_embeddings_project_id
+    ON document_embeddings ((metadata->>'project_id'));
 
 -- Indice GIN simples para consultas por qualquer chave no metadata
-CREATE INDEX IF NOT EXISTS idx_embeddings_metadata_gin
-    ON embeddings USING GIN (metadata);
+CREATE INDEX IF NOT EXISTS idx_document_embeddings_metadata_gin
+    ON document_embeddings USING GIN (metadata);

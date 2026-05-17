@@ -1,0 +1,127 @@
+{
+  "description": "Golden dataset for Phase 6 RAG evaluation. 20 sample Q&A pairs covering academic document analysis scenarios.",
+  "version": "1.0.0",
+  "created_at": "2026-04-29",
+  "qa_pairs": [
+    {
+      "id": 1,
+      "question": "Qual e o objetivo principal deste trabalho?",
+      "expected_topics": ["objetivo", "proposito", "finalidade"],
+      "category": "objective"
+    },
+    {
+      "id": 2,
+      "question": "Qual metodologia foi utilizada na pesquisa?",
+      "expected_topics": ["metodologia", "metodo", "abordagem"],
+      "category": "methodology"
+    },
+    {
+      "id": 3,
+      "question": "Quais sao os principais resultados encontrados?",
+      "expected_topics": ["resultados", "descobertas", "achados"],
+      "category": "results"
+    },
+    {
+      "id": 4,
+      "question": "Qual a conclusao do estudo?",
+      "expected_topics": ["conclusao", "consideracoes finais"],
+      "category": "conclusion"
+    },
+    {
+      "id": 5,
+      "question": "Qual o tamanho da amostra utilizada?",
+      "expected_topics": ["amostra", "participantes", "quantidade"],
+      "category": "methodology"
+    },
+    {
+      "id": 6,
+      "question": "Quais ferramentas ou instrumentos foram usados para coleta de dados?",
+      "expected_topics": ["instrumentos", "ferramentas", "coleta de dados"],
+      "category": "methodology"
+    },
+    {
+      "id": 7,
+      "question": "Quais sao as limitacoes mencionadas pelo autor?",
+      "expected_topics": ["limitacoes", "restricoes", "limites"],
+      "category": "limitations"
+    },
+    {
+      "id": 8,
+      "question": "Qual e a contribuicao deste trabalho para a area?",
+      "expected_topics": ["contribuicao", "relevancia", "impacto"],
+      "category": "contribution"
+    },
+    {
+      "id": 9,
+      "question": "Quais referencias teoricas fundamentam a pesquisa?",
+      "expected_topics": ["referencial teorico", "fundamentacao", "base teorica"],
+      "category": "theory"
+    },
+    {
+      "id": 10,
+      "question": "Como os dados foram analisados?",
+      "expected_topics": ["analise", "processamento", "tratamento de dados"],
+      "category": "methodology"
+    },
+    {
+      "id": 11,
+      "question": "Quais sao as recomendacoes para trabalhos futuros?",
+      "expected_topics": ["trabalhos futuros", "recomendacoes", "pesquisas futuras"],
+      "category": "future_work"
+    },
+    {
+      "id": 12,
+      "question": "Qual e o problema de pesquisa abordado?",
+      "expected_topics": ["problema", "questao de pesquisa", "hipotese"],
+      "category": "problem"
+    },
+    {
+      "id": 13,
+      "question": "Quais variaveis foram consideradas no estudo?",
+      "expected_topics": ["variaveis", "fatores", "parametros"],
+      "category": "methodology"
+    },
+    {
+      "id": 14,
+      "question": "O estudo apresenta significancia estatistica?",
+      "expected_topics": ["significancia", "estatistica", "valor-p"],
+      "category": "results"
+    },
+    {
+      "id": 15,
+      "question": "Qual o contexto ou cenario da pesquisa?",
+      "expected_topics": ["contexto", "cenario", "ambiente"],
+      "category": "context"
+    },
+    {
+      "id": 16,
+      "question": "Quais sao as palavras-chave do documento?",
+      "expected_topics": ["palavras-chave", "keywords", "termos"],
+      "category": "metadata"
+    },
+    {
+      "id": 17,
+      "question": "Como o autor define os conceitos principais?",
+      "expected_topics": ["definicao", "conceito", "termo"],
+      "category": "theory"
+    },
+    {
+      "id": 18,
+      "question": "Quais foram as etapas do procedimento experimental?",
+      "expected_topics": ["procedimento", "etapas", "experimental"],
+      "category": "methodology"
+    },
+    {
+      "id": 19,
+      "question": "Os resultados corroboram a hipotese inicial?",
+      "expected_topics": ["hipotese", "corroboracao", "confirmacao"],
+      "category": "results"
+    },
+    {
+      "id": 20,
+      "question": "Qual e a relevancia pratica dos achados?",
+      "expected_topics": ["relevancia pratica", "aplicacao", "utilidade"],
+      "category": "contribution"
+    }
+  ]
+}

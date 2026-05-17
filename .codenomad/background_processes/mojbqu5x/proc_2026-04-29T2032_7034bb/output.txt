@@ -1,0 +1,13 @@
+........................................................................ [ 35%]
+......................FF....................................sssssssssss. [ 71%]
+.........................................................                [100%]
+=============================== warnings summary ===============================
+../../../../../.local/lib/python3.14/site-packages/PyPDF2/__init__.py:21
+  /home/olucasdev/.local/lib/python3.14/site-packages/PyPDF2/__init__.py:21: DeprecationWarning: PyPDF2 is deprecated. Please move to the pypdf library instead.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_e2e_smoke.py::TestE2EDocumentProcessing::test_process_document_success
+FAILED tests/test_e2e_smoke.py::TestE2EDocumentProcessing::test_process_document_invalid_storage_key
+2 failed, 188 passed, 11 skipped, 1 warning in 1.06s

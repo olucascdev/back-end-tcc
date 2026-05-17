@@ -1,0 +1,15 @@
+efc7119 feat: implement phase 6 quality, evaluation and hardening
+fc56d3d feat: implement phase 4 academic features
+076cded feat(ratelimit): add redis-backed rate limiter for multi-instance consistency (3.5)
+5ac949f feat(benchmark): add comparative benchmark gateway mock and comparison script (3.4)
+508bfb0 feat(cache): add cache observability metrics and enriched logs (3.3)
+54edc8c feat(cache): add project-level cache invalidation by document version (3.2)
+f74e155 feat(cache): implement redis semantic cache on chat path (3.1)
+102a3c4 feat(benchmark): add baseline load test and mock agent for chat endpoint
+5447be5 feat(openspec): add phase 3 semantic cache and performance change proposal
+9fb0baa feat(gateway): implement phase 2 resilience and scale features
+7fff338 docs: adiciona documentacao de conclusao da Fase 1 (MVP RAG)
+0e8b16e feat: implementa observabilidade minima do MVP com rastreabilidade fim-a-fim
+801c3b8 feat: implementa persistencia de sessao e historico de conversas
+cbef6bd feat: implementa chat RAG real com fontes rastreaveis
+6b53dd6 feat: implementa integracao real Go gateway -> Python agent

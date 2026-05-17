@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import chat, compare, documents, health, summarize
+from app.api.v1.endpoints import chat, compare, documents, health, research, summarize
 
 router = APIRouter()
 
@@ -18,3 +18,4 @@ router.include_router(documents.router, prefix="/documents", tags=["documents"])
 router.include_router(chat.router, prefix="/chat", tags=["chat"])
 router.include_router(summarize.router, prefix="/summarize", tags=["summarize"])
 router.include_router(compare.router, prefix="/compare", tags=["compare"])
+router.include_router(research.router, prefix="/research", tags=["research"])
