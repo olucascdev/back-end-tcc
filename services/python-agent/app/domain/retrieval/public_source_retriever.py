@@ -33,9 +33,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from io import BytesIO
 from urllib.parse import urlparse
 
 import httpx
+from pypdf import PdfReader
 
 from app.core.config import Settings
 from app.infrastructure.chunking.chunker import TextChunker
@@ -137,13 +139,20 @@ def _download_text(url: str) -> str | None:
 
             content_type = response.headers.get("content-type", "").lower()
 
-            # PDF: pula por enquanto (extracao de PDF e complexa)
-            if "application/pdf" in content_type:
-                logger.info(
-                    "URL e PDF (%s); extracao de PDF nao suportada, pulando.",
-                    url[:100],
-                )
-                return None
+            # PDF: extrai texto das paginas
+            if content_type == "application/pdf" or url.lower().endswith(".pdf"):
+                try:
+                    reader = PdfReader(BytesIO(content))
+                    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+                    logger.info(
+                        "PDF extraido: %d paginas, %d chars",
+                        len(reader.pages),
+                        len(text),
+                    )
+                    return text
+                except Exception as exc:
+                    logger.warning("Falha ao extrair PDF de %s: %s", url, exc)
+                    return None
 
             # HTML: extrai texto
             if "text/html" in content_type:

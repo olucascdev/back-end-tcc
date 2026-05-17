@@ -60,6 +60,19 @@ class RAGService:
         """Retorna se o modo project_plus_public esta habilitado."""
         return getattr(self._settings, "ENABLE_PUBLIC_RETRIEVAL", False)
 
+    @property
+    def _llm_available(self) -> bool:
+        """Verifica se uma chave de API valida esta configurada para chamadas LLM.
+
+        Independente do status de mock dos embeddings, o LLM pode ser
+        chamado diretamente quando a chave de API esta presente e
+        diferente de 'mock'.
+        """
+        return bool(
+            self._settings.OPENAI_API_KEY
+            and self._settings.OPENAI_API_KEY != "mock"
+        )
+
     def chat(
         self,
         project_id: str,
@@ -299,7 +312,7 @@ class RAGService:
         user_content = f"Contexto dos documentos:\n{context}\n\nPergunta: {question}"
         messages.append({"role": "user", "content": user_content})
 
-        if not self._embedder._use_mock:
+        if self._llm_available:
             # Chamada real a OpenAI (ou provider compativel via base_url)
             from openai import OpenAI
 

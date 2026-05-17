@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     )
 
     # External source clients
-    UNPAYWALL_EMAIL: str = "user@example.com"
+    UNPAYWALL_EMAIL: str = "researcher@university.edu"
     GOOGLE_BOOKS_API_KEY: str | None = None
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}

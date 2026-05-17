@@ -10,6 +10,7 @@ prometheus-client>=0.20.0
 # Document processing
 boto3>=1.34.0
 PyPDF2>=3.0.0
+pypdf>=4.0.0
 # Embeddings
 openai>=1.30.0
 # Database
