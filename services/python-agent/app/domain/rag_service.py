@@ -19,6 +19,7 @@ import logging
 from typing import Any, Literal
 
 from app.core.config import Settings
+from app.domain.retrieval.public_source_retriever import PublicSourceRetriever
 from app.infrastructure.database import conversation_repository, session_repository
 from app.infrastructure.database.pgvector_store import PgVectorStore
 from app.infrastructure.embeddings.openai_embedder import OpenAIEmbedder
@@ -47,10 +48,12 @@ class RAGService:
         settings: Settings | None = None,
         embedder: OpenAIEmbedder | None = None,
         vector_store: PgVectorStore | None = None,
+        public_retriever: PublicSourceRetriever | None = None,
     ) -> None:
         self._settings = settings or Settings()
         self._embedder = embedder or OpenAIEmbedder(self._settings)
         self._vector_store = vector_store or PgVectorStore(self._settings)
+        self._public_retriever = public_retriever or PublicSourceRetriever(self._settings)
 
     @property
     def public_retrieval_enabled(self) -> bool:
@@ -119,10 +122,10 @@ class RAGService:
         # 5. Busca chunks da biblioteca publica se modo permitir
         public_chunks: list[dict[str, Any]] = []
         if retrieval_mode == "project_plus_public":
-            public_chunks = self._vector_store.search_similar_public_library(
+            public_chunks = self._public_retriever.retrieve(
+                query=message,
                 query_embedding=query_embedding,
                 top_k=5,
-                min_score=MIN_RELEVANCE_SCORE,
             )
             logger.info(
                 "Retrieval project_plus_public: project=%d, public=%d chunks",

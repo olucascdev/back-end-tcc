@@ -74,6 +74,11 @@ class BookMetadata(BaseModel):
     Atributos:
         gutenberg_id: ID do Project Gutenberg (se aplicavel).
         ol_key: chave Open Library (ex: /works/OL123W).
+        source_id: identificador unico na fonte original (generico).
+        source_provider: nome do provedor da fonte (ex: openalex, arxiv, crossref).
+        doi: Digital Object Identifier (para fontes academicas).
+        abstract: resumo do trabalho (para fontes academicas).
+        url: URL direta para o recurso ou pagina do trabalho.
         title: titulo do livro.
         authors: lista de autores.
         language: idioma principal.
@@ -84,6 +89,11 @@ class BookMetadata(BaseModel):
 
     gutenberg_id: Optional[str] = None
     ol_key: Optional[str] = None
+    source_id: Optional[str] = None
+    source_provider: Optional[str] = None
+    doi: Optional[str] = None
+    abstract: Optional[str] = None
+    url: Optional[str] = None
     title: str
     authors: list[str] = Field(default_factory=list)
     language: Optional[str] = None
@@ -95,12 +105,15 @@ class BookMetadata(BaseModel):
         """
         Gera chave estavel para deduplicacao.
 
-        Prioridade: gutenberg_id > ol_key > hash(title+authors).
+        Prioridade: gutenberg_id > ol_key > source_provider:source_id > hash(title+authors).
         """
         if self.gutenberg_id:
             return f"gutenberg:{self.gutenberg_id}"
         if self.ol_key:
             return f"ol:{self.ol_key}"
+        # Suporte generico para novas fontes (openalex, arxiv, crossref, etc.)
+        if self.source_provider and self.source_id:
+            return f"{self.source_provider}:{self.source_id}"
         # Fallback: hash de titulo + autores
         import hashlib
 

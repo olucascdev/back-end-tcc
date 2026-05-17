@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     OPEN_LIBRARY_BASE_URL: str = "https://openlibrary.org"
     PROJECT_GUTENBERG_BASE_URL: str = "https://www.gutenberg.org"
 
+    # Fontes cientificas (OpenAlex, arXiv, Crossref)
+    OPENALEX_ENABLED: bool = True
+    OPENALEX_BASE_URL: str = "https://api.openalex.org"
+    ARXIV_ENABLED: bool = True
+    ARXIV_BASE_URL: str = "http://export.arxiv.org"
+    CROSSREF_ENABLED: bool = True
+    CROSSREF_BASE_URL: str = "https://api.crossref.org"
+
     # OpenAI (embeddings)
     OPENAI_API_KEY: str = ""
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-ada-002"

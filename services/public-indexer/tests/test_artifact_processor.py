@@ -228,3 +228,86 @@ class TestArtifactProcessorOpenLibrary:
         mock_artifact_storage.download_artifact.assert_called_once()
         call_args = mock_artifact_storage.download_artifact.call_args
         assert "OL123W" in call_args.args[0]
+
+
+class TestArtifactProcessorScientificSources:
+    """Testes de processamento de fontes cientificas."""
+
+    @pytest.mark.asyncio
+    async def test_process_openalex_book(
+        self, processor: ArtifactProcessorUseCase
+    ) -> None:
+        """Verifica processamento de trabalho OpenAlex."""
+        book = BookMetadata(
+            source_id="W123456",
+            source_provider="openalex",
+            title="OpenAlex Paper",
+            authors=["Author A"],
+            url="https://example.com/paper.pdf",
+        )
+
+        result = await processor.execute(book)
+
+        assert result.success is True
+        mock_artifact_storage = processor._artifact_storage
+        mock_artifact_storage.download_artifact.assert_called_once()
+        call_args = mock_artifact_storage.download_artifact.call_args
+        assert call_args.args[0] == "https://example.com/paper.pdf"
+
+    @pytest.mark.asyncio
+    async def test_process_arxiv_book(
+        self, processor: ArtifactProcessorUseCase
+    ) -> None:
+        """Verifica processamento de artigo arXiv."""
+        book = BookMetadata(
+            source_id="2101.12345",
+            source_provider="arxiv",
+            title="arXiv Paper",
+            authors=["Author B"],
+        )
+
+        result = await processor.execute(book)
+
+        assert result.success is True
+        mock_artifact_storage = processor._artifact_storage
+        mock_artifact_storage.download_artifact.assert_called_once()
+        call_args = mock_artifact_storage.download_artifact.call_args
+        assert call_args.args[0] == "https://arxiv.org/pdf/2101.12345.pdf"
+
+    @pytest.mark.asyncio
+    async def test_process_crossref_book_with_url(
+        self, processor: ArtifactProcessorUseCase
+    ) -> None:
+        """Verifica processamento de trabalho Crossref com URL."""
+        book = BookMetadata(
+            source_id="10.1000/test",
+            source_provider="crossref",
+            title="Crossref Paper",
+            authors=["Author C"],
+            url="https://example.com/crossref.pdf",
+        )
+
+        result = await processor.execute(book)
+
+        assert result.success is True
+        mock_artifact_storage = processor._artifact_storage
+        mock_artifact_storage.download_artifact.assert_called_once()
+        call_args = mock_artifact_storage.download_artifact.call_args
+        assert call_args.args[0] == "https://example.com/crossref.pdf"
+
+    @pytest.mark.asyncio
+    async def test_process_crossref_book_without_url(
+        self, processor: ArtifactProcessorUseCase
+    ) -> None:
+        """Verifica que Crossref sem URL retorna erro."""
+        book = BookMetadata(
+            source_id="10.1000/nourl",
+            source_provider="crossref",
+            title="Crossref Paper No URL",
+            authors=["Author D"],
+        )
+
+        result = await processor.execute(book)
+
+        assert result.success is False
+        assert "Nenhuma URL de download disponivel" in result.error

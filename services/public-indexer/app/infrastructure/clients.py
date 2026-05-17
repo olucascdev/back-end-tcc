@@ -10,7 +10,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any
 
-import psycopg
+from psycopg_pool import ConnectionPool
 from minio import Minio
 from motor.motor_asyncio import AsyncIOMotorClient
 from redis.asyncio import Redis
@@ -25,12 +25,12 @@ class PostgresClient:
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._pool: psycopg.ConnectionPool | None = None
+        self._pool: ConnectionPool | None = None
 
     async def connect(self) -> None:
         """Abre pool de conexoes PostgreSQL."""
         # psycopg3 ConnectionPool e sync, mas criamos no startup
-        self._pool = psycopg.ConnectionPool(
+        self._pool = ConnectionPool(
             conninfo=self._settings.DB_URL,
             min_size=2,
             max_size=10,

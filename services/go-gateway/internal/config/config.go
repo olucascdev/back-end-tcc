@@ -54,7 +54,7 @@ func LoadConfig() *Config {
 
 	return &Config{
 		ServerPort:             getEnv("GO_GATEWAY_PORT", "8080"),
-		PythonAgentURL:         getEnv("PYTHON_AGENT_URL", "http://localhost:8000"),
+		PythonAgentURL:         getEnv("PYTHON_AGENT_URL", "http://localhost:8000/api/v1"),
 		RedisURL:               getEnv("REDIS_URL", "redis://localhost:6379/0"),
 		DatabaseURL:            getEnv("DB_URL", "postgres://localhost:5432/tcc_db"),
 		MinioEndpoint:          getEnv("MINIO_ENDPOINT", "localhost:9000"),

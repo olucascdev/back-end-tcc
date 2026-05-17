@@ -35,6 +35,9 @@ from app.infrastructure.clients import (
 from app.infrastructure.sources import (
     create_open_library_client,
     create_gutenberg_client,
+    create_openalex_client,
+    create_arxiv_client,
+    create_crossref_client,
 )
 from app.infrastructure.artifact_storage import ArtifactStorageService
 from app.infrastructure.chunking import ChunkingConfig, TextChunker
@@ -90,6 +93,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     open_library_client = create_open_library_client(settings)
     gutenberg_client = create_gutenberg_client(settings)
 
+    # Clientes de fontes cientificas — instanciados condicionalmente
+    openalex_client = (
+        create_openalex_client(settings) if settings.OPENALEX_ENABLED else None
+    )
+    arxiv_client_inst = (
+        create_arxiv_client(settings) if settings.ARXIV_ENABLED else None
+    )
+    crossref_client = (
+        create_crossref_client(settings) if settings.CROSSREF_ENABLED else None
+    )
+
     # Servico de armazenamento de artefatos
     artifact_storage = ArtifactStorageService(
         settings=settings,
@@ -141,6 +155,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         book_catalog=book_catalog,
         open_library_client=open_library_client,
         gutenberg_client=gutenberg_client,
+        openalex_client=openalex_client,
+        arxiv_client=arxiv_client_inst,
+        crossref_client=crossref_client,
         batch_size=settings.BATCH_SIZE,
     )
 

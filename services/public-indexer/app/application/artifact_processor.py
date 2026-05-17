@@ -151,6 +151,9 @@ class ArtifactProcessorUseCase:
 
         Para Gutenberg: usa download_urls se disponivel, senao constroi URL.
         Para Open Library: constroi URL de download do archive.org.
+        Para OpenAlex: usa url do metadata (OA URL).
+        Para arXiv: constroi URL do PDF a partir do source_id.
+        Para Crossref: tenta usar url do metadata (PDF link).
 
         Args:
             book: metadados do livro.
@@ -168,6 +171,30 @@ class ArtifactProcessorUseCase:
             # ol_key vem como /works/OL123W, extrai ID
             ol_id = book.ol_key.split("/")[-1]  # OL123W
             return f"https://archive.org/download/{ol_id}/{ol_id}.txt"
+
+        # Se tem source_provider e source_id (fontes cientificas genericas)
+        if book.source_provider and book.source_id:
+            if book.source_provider == "openalex":
+                # OpenAlex: usa a URL de acesso aberto (OA URL) do metadata
+                return book.url
+
+            if book.source_provider == "arxiv":
+                # arXiv: constroi URL do PDF a partir do source_id
+                return f"https://arxiv.org/pdf/{book.source_id}.pdf"
+
+            if book.source_provider == "crossref":
+                # Crossref: tenta usar URL do metadata (pode ser PDF link)
+                if book.url:
+                    return book.url
+                # Se nao ha URL direta, loga warning e retorna None
+                # O pipeline vai skipar embedding para este item,
+                # mas os metadados permanecem no catalogo
+                logger.warning(
+                    "Crossref sem URL de PDF direto: source_id=%s, doi=%s",
+                    book.source_id,
+                    book.doi,
+                )
+                return None
 
         return None
 

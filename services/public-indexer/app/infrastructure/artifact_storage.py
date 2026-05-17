@@ -79,7 +79,10 @@ class ArtifactStorageService:
 
         for attempt in range(1, self._settings.MAX_RETRIES + 1):
             try:
-                async with httpx.AsyncClient(timeout=self._download_timeout) as client:
+                async with httpx.AsyncClient(
+                    timeout=self._download_timeout,
+                    follow_redirects=True,
+                ) as client:
                     response = await client.get(url)
                     response.raise_for_status()
                     return response.content

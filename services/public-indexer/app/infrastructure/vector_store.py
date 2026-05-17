@@ -67,24 +67,27 @@ class PublicVectorStore:
                     else:
                         metadata_json = Jsonb(metadata)
 
-                    values.append((content, embedding, metadata_json))
+                    # psycopg3 nao possui psycopg.extras.execute_values.
+                    # Convertemos para literal de vector e usamos executemany.
+                    embedding_literal = self._to_vector_literal(embedding)
+                    values.append((content, embedding_literal, metadata_json))
 
-                # Insert bulk usando execute_values para performance
-                from psycopg.extras import execute_values
-
-                execute_values(
-                    cur,
+                cur.executemany(
                     f"""
                     INSERT INTO {TABLE_NAME} (content, embedding, metadata)
-                    VALUES %s
+                    VALUES (%s, %s::vector, %s)
                     """,
                     values,
-                    template="(%s, %s::vector, %s)",
                 )
 
                 inserted = len(values)
                 logger.info("Embeddings inseridos: count=%d", inserted)
                 return inserted
+
+    @staticmethod
+    def _to_vector_literal(embedding: list[float]) -> str:
+        """Converte lista de floats para literal aceito pelo pgvector."""
+        return "[" + ",".join(str(float(value)) for value in embedding) + "]"
 
     async def check_existing_fingerprint(
         self,

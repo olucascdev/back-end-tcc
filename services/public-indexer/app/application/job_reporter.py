@@ -74,7 +74,7 @@ class JobReporter:
         """
         self._db = mongo_db
         self._collection = None
-        if mongo_db:
+        if mongo_db is not None:
             self._collection = mongo_db.get_collection(self.COLLECTION_NAME)
 
     def create_report(

@@ -75,17 +75,27 @@ class BookCatalogService:
         )
         return {"stable_key": stable_key, "modified": result.modified_count > 0}
 
-    async def get_pending_books(self, limit: int = 100) -> list[dict]:
+    async def get_pending_books(
+        self,
+        limit: int = 100,
+        source_filter: Optional[str] = None,
+    ) -> list[dict]:
         """
         Retorna livros pendentes de indexacao.
 
         Args:
             limit: numero maximo de registros.
+            source_filter: provider opcional para filtrar pendencias
+                (ex: openalex, arxiv, crossref, gutenberg, openlibrary).
 
         Returns:
             Lista de documentos MongoDB pendentes.
         """
-        cursor = self._collection.find({"indexed": False}).limit(limit)
+        query: dict = {"indexed": False}
+        if source_filter:
+            query["source_provider"] = source_filter
+
+        cursor = self._collection.find(query).limit(limit)
         return await cursor.to_list(length=limit)
 
     async def mark_indexed(self, stable_key: str) -> None:

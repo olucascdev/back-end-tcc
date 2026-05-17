@@ -84,7 +84,8 @@ class RunIndexUseCase:
         try:
             # Busca livros pendentes
             pending_books = await self._book_catalog.get_pending_books(
-                limit=100  # TODO: usar settings.BATCH_SIZE
+                limit=100,  # TODO: usar settings.BATCH_SIZE
+                source_filter=source_filter,
             )
 
             books_fetched = len(pending_books)
@@ -122,6 +123,12 @@ class RunIndexUseCase:
                     book = BookMetadata(
                         gutenberg_id=book_doc.get("gutenberg_id"),
                         ol_key=book_doc.get("ol_key"),
+                        # Campos de fontes cientificas (None-safe para documentos antigos)
+                        source_id=book_doc.get("source_id"),
+                        source_provider=book_doc.get("source_provider"),
+                        doi=book_doc.get("doi"),
+                        abstract=book_doc.get("abstract"),
+                        url=book_doc.get("url"),
                         title=book_doc.get("title", ""),
                         authors=book_doc.get("authors", []),
                         language=book_doc.get("language"),

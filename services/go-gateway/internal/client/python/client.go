@@ -22,6 +22,7 @@ import (
 // Erros sentinelas para classificacao de falhas upstream.
 var (
 	ErrValidation         = errors.New("validation error from Python agent")
+	ErrNotFound           = errors.New("resource not found in Python agent")
 	ErrServiceUnavailable = errors.New("Python agent service unavailable")
 	ErrTimeout            = errors.New("request to Python agent timed out")
 )
@@ -409,8 +410,18 @@ func doRequest[Req any, Resp any](
 
 	// Classificar erro por status HTTP
 	switch {
+	case resp.StatusCode == http.StatusNotFound:
+		// 404 -> recurso nao encontrado no agente Python
+		slog.Warn("python agent resource not found",
+			slog.String("operation", opName),
+			slog.Int("status", resp.StatusCode),
+			slog.String("body", string(logger.RedactBytes(respBody))),
+			slog.String("request_id", getRequestIDFromContext(ctx)),
+			slog.Duration("duration", duration),
+		)
+		return nil, fmt.Errorf("%w: %s", ErrNotFound, string(respBody))
 	case resp.StatusCode >= 400 && resp.StatusCode < 500:
-		// 4xx -> erro de validacao do lado Python
+		// 4xx (exceto 404) -> erro de validacao do lado Python
 		slog.Warn("python agent validation error",
 			slog.String("operation", opName),
 			slog.Int("status", resp.StatusCode),

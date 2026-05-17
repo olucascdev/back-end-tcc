@@ -368,6 +368,7 @@ func ProxyResearchGaps(client *python.Client) gin.HandlerFunc {
 // - ErrCircuitOpen -> 503 Service Unavailable
 // - ErrTimeout -> 504 Gateway Timeout
 // - ErrServiceUnavailable -> 502 Bad Gateway
+// - ErrNotFound -> 404 Not Found
 // - ErrValidation -> 400 Bad Request (detalhes do Python)
 // - Outros -> 500 Internal Server Error
 // Mensagens de erro sao seguras (sem expor detalhes internos).
@@ -405,6 +406,16 @@ func handlePythonError(c *gin.Context, err error, operation string) {
 		)
 		c.JSON(http.StatusBadGateway, gin.H{
 			"error": "upstream service unavailable",
+		})
+
+	case errors.Is(err, python.ErrNotFound):
+		slog.Warn("python agent resource not found",
+			slog.String("operation", operation),
+			slog.String("request_id", requestID),
+			slog.String("error_type", "not_found"),
+		)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "upstream resource not found",
 		})
 
 	case errors.Is(err, python.ErrValidation):

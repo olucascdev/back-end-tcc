@@ -63,5 +63,16 @@
     "outputSizeBytes": 7805,
     "exitCode": 0,
     "stoppedAt": "2026-05-17T14:01:50.019Z"
+  },
+  {
+    "id": "proc_2026-05-17T2142_1e3cb5",
+    "workspaceId": "mp9tshy6",
+    "title": "Python Agent Uvicorn",
+    "command": "cd /home/olucasdev/Documentos/estudos/back-end-tcc/services/python-agent && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000",
+    "cwd": "/home/olucasdev/Documentos/estudos/back-end-tcc",
+    "status": "running",
+    "pid": 351244,
+    "startedAt": "2026-05-17T21:42:22.441Z",
+    "outputSizeBytes": 0
   }
 ]
