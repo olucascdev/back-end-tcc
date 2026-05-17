@@ -15,6 +15,17 @@ Fluxo:
 4. Gera embeddings dos chunks
 5. Calcula similaridade com a query
 6. Retorna os chunks mais relevantes
+
+NOTA SOBRE asyncio.run():
+Este modulo usa asyncio.run() para chamar clientes async (OpenAlex, Unpaywall,
+Google Books) a partir de um contexto sincrono. Isso e seguro porque o metodo
+RAGService.chat() e chamado a partir de um endpoint FastAPI sincrono (def),
+que executa em um thread pool do Starlette.
+
+ATENCAO: Se o endpoint que invoca este modulo for alterado para 'async def',
+este modulo precisara ser refatorado para usar 'await' diretamente em vez de
+asyncio.run(), caso contrario ocorrera RuntimeError: 'This event loop is
+already running'.
 """
 
 from __future__ import annotations
@@ -22,6 +33,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from urllib.parse import urlparse
 
 import httpx
 
@@ -96,16 +108,32 @@ def _download_text(url: str) -> str | None:
     Usa httpx.Client sincrono para compatibilidade com o metodo sync
     do retriever.
 
+    Protecoes:
+    - Valida scheme (apenas http/https) para prevenir SSRF.
+    - Limita tamanho da resposta a 5MB para evitar consumo excessivo de memoria.
+
     Args:
         url: URL do conteudo a ser baixado.
 
     Returns:
         Texto extraido ou None se falhar.
     """
+    # Valida scheme para prevenir SSRF (rejeita file://, ftp://, javascript:, etc.)
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        logger.warning("URL scheme invalido (SSRF prevenido): %s", url[:100])
+        return None
+
+    # Limite maximo de 5MB para o corpo da resposta
+    MAX_BODY_SIZE = 5 * 1024 * 1024
+
     try:
         with httpx.Client(timeout=15.0, follow_redirects=True) as client:
             response = client.get(url)
             response.raise_for_status()
+
+            # Aplica limite de tamanho
+            content = response.content[:MAX_BODY_SIZE]
 
             content_type = response.headers.get("content-type", "").lower()
 
@@ -119,10 +147,10 @@ def _download_text(url: str) -> str | None:
 
             # HTML: extrai texto
             if "text/html" in content_type:
-                return _extract_text_from_html(response.text)
+                return _extract_text_from_html(content.decode("utf-8", errors="replace"))
 
             # Texto puro ou outro tipo: tenta usar como texto
-            return response.text
+            return content.decode("utf-8", errors="replace")
 
     except httpx.HTTPStatusError as exc:
         logger.warning(
@@ -166,6 +194,12 @@ class PublicSourceRetriever:
     ) -> list[dict]:
         """Busca fontes publicas on-demand e retorna chunks com score.
 
+        NOTA: Este metodo usa asyncio.run() internamente para chamar clientes
+        async a partir de contexto sincrono. E seguro enquanto o endpoint
+        FastAPI que invoca RAGService.chat() for 'def' (sincrono). Se o
+        endpoint for alterado para 'async def', este metodo deve ser
+        refatorado para async/await.
+
         Fluxo:
         1. Busca no OpenAlex por query (top 5 works)
         2. Para cada work, tenta obter texto:
@@ -185,6 +219,18 @@ class PublicSourceRetriever:
         Returns:
             Lista de chunks ordenados por score decrescente.
         """
+        # Guarda contra chamada a partir de contexto async (asyncio.run falharia)
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop is not None:
+            logger.warning(
+                "PublicSourceRetriever.retrieve() chamado de contexto async; "
+                "asyncio.run() pode falhar. Refatore para async/await."
+            )
+
         all_chunks: list[dict] = []
 
         # 1. Busca trabalhos no OpenAlex (chamada async via asyncio.run)
