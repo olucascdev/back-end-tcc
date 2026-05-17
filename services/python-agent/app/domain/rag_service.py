@@ -297,10 +297,14 @@ class RAGService:
         messages.append({"role": "user", "content": user_content})
 
         if not self._embedder._use_mock:
-            # Chamada real a OpenAI
+            # Chamada real a OpenAI (ou provider compativel via base_url)
             from openai import OpenAI
 
-            client = OpenAI(api_key=self._settings.OPENAI_API_KEY)
+            base_url = self._settings.OPENAI_BASE_URL or None
+            client = OpenAI(
+                api_key=self._settings.OPENAI_API_KEY,
+                base_url=base_url,
+            )
             try:
                 response = client.chat.completions.create(
                     model=self._settings.OPENAI_MODEL,

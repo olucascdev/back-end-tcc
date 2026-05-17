@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     ENABLE_PUBLIC_RETRIEVAL: bool = False
     # RAG / LLM settings
     OPENAI_MODEL: str = "gpt-4o-mini"
+    OPENAI_BASE_URL: str = ""  # Leave empty for default OpenAI; set for Groq or other compatible providers
     MAX_CONTEXT_TOKENS: int = 4000
     SYSTEM_PROMPT: str = (
         "Voce e um assistente especializado em analisar documentos academicos. "
