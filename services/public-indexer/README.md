@@ -1,100 +1,134 @@
 # Public Indexer
 
-Service for indexing public book catalogs from external sources (Open Library, Project Gutenberg, Google Books) into MongoDB and PostgreSQL.
+> **⚠️ Status: DEPRECATED / STUB**
+>
+> O pipeline de indexação em massa foi substituído por recuperação sob demanda no **Python Agent**. Este serviço é mantido apenas para contexto histórico e pode ser ignorado na maioria dos casos de uso.
 
-## Responsibilities
+## O que era este serviço?
 
-- Fetch book metadata from public APIs
-- Sync catalog to MongoDB
-- Generate and store embeddings in PostgreSQL (pgvector)
-- Scheduled periodic synchronization
-- Deduplication and conflict resolution
+O Public Indexer foi originalmente projetado para indexar em massa catálogos públicos de livros de fontes externas como Open Library, Project Gutenberg e Google Books. O fluxo planejado era:
 
-## Setup
+1. **Buscar metadados** de APIs públicas (OpenAlex, Gutenberg, OpenLibrary, Google Books)
+2. **Baixar artefatos** (PDFs, eBooks) e armazenar no MinIO
+3. **Gerar embeddings** do conteúdo textual e armazenar no PostgreSQL com pgvector
+4. **Manter catálogo** no MongoDB para consulta e deduplicação
+5. **Sincronizar periodicamente** em intervalos configuráveis
+
+## O que ele faz agora?
+
+O serviço foi reduzido a um stub mínimo:
+
+| Método | Caminho | Comportamento |
+|---|---|---|
+| `GET` | `/api/v1/health` | Health check — retorna `200 OK` se o serviço está vivo |
+| `GET` | `/api/v1/health/ready` | Readiness check — verifica dependências |
+| `POST` | `/api/v1/admin/index/run` | Retorna `503 Service Unavailable` (serviço descontinuado) |
+| `GET` | `/api/v1/admin/index/jobs/{job_id}` | Retorna `503 Service Unavailable` (serviço descontinuado) |
+
+**Nenhum job agendado é executado.** O serviço não indexa, não baixa e não processa documentos.
+
+## Por que foi substituído?
+
+Para um projeto de TCC, a indexação prévia de 100+ livros era desnecessária e complexa demais. A abordagem de **recuperação sob demanda** implementada no Python Agent é mais simples e eficiente:
+
+| Critério | Indexação em massa (antigo) | Recuperação sob demanda (novo) |
+|---|---|---|
+| **Complexidade** | Alta — requer pipeline completo de ingestão | Baixa — busca apenas quando necessário |
+| **Armazenamento** | Persiste todos os artefatos no MinIO | Não persiste — processa e descarta |
+| **Custo** | Alto — embeddings de milhares de documentos | Baixo — apenas 3-5 papers por query |
+| **Atualização** | Requer re-indexação periódica | Sempre usa dados frescos da API |
+| **Escopo TCC** | Overkill para demonstração | Adequado e suficiente |
+
+A recuperação sob demanda busca 3-5 artigos relevantes por consulta, extrai o texto e inclui no contexto RAG. Isso é suficiente para demonstrar o conceito sem a complexidade de um pipeline de indexação completo.
+
+## Como executar (se necessário)
+
+Se você precisar rodar este serviço para fins de teste ou desenvolvimento:
 
 ```bash
-# Copy environment file
+cd services/public-indexer
+
+# Copiar arquivo de ambiente
 cp .env.example .env
 
-# Create virtual environment
+# Criar ambiente virtual
 python -m venv .venv
 source .venv/bin/activate  # Linux/macOS
 
-# Install dependencies
+# Instalar dependências
 pip install -r requirements.txt
 
-# Run locally (requires infrastructure running via docker compose)
-uvicorn app.main:app --reload --port 8001
+# Iniciar o servidor
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 ```
 
-## Structure
+## Estrutura de pastas
 
 ```
 public-indexer/
 ├── app/
-│   ├── main.py              # FastAPI app with lifespan events
+│   ├── main.py                  # Aplicação FastAPI com lifespan events
+│   ├── __init__.py
+│   │
+│   ├── api/
+│   │   └── v1/
+│   │       ├── router.py        # Router principal
+│   │       └── endpoints/
+│   │           ├── health.py    # GET /health, GET /health/ready
+│   │           └── admin.py     # Endpoints admin (retornam 503)
+│   │
 │   ├── core/
-│   │   ├── config.py        # Pydantic Settings loading .env
-│   │   └── logging.py       # Structured JSON logger with request_id
-│   ├── api/v1/
-│   │   ├── router.py        # API router
-│   │   └── endpoints/
-│   │       ├── health.py    # GET /health, GET /health/ready
-│   │       └── admin.py     # POST /admin/index/run, GET /admin/index/jobs/{job_id}
+│   │   ├── config.py            # Pydantic Settings carregando .env
+│   │   └── logging.py           # Logger estruturado JSON com request_id
+│   │
 │   ├── domain/
-│   │   ├── models.py        # Domain models (IndexerJob, BookMetadata, EmbeddingMetadata)
-│   │   └── services.py      # Domain services (BookCatalogService, JobStore)
+│   │   ├── models.py            # Modelos de domínio (IndexerJob, BookMetadata, etc.)
+│   │   └── services.py          # Serviços de domínio (BookCatalogService, JobStore)
+│   │
 │   ├── infrastructure/
-│   │   └── clients.py       # Clients for MongoDB, PostgreSQL, MinIO, Redis
+│   │   └── clients.py           # Clientes para MongoDB, PostgreSQL, MinIO, Redis
+│   │
 │   └── application/
-│       └── usecases.py      # Use cases (RunIndexUseCase, GetJobStatusUseCase)
+│       └── usecases.py          # Casos de uso (RunIndexUseCase, GetJobStatusUseCase)
+│
 ├── tests/
-│   ├── test_health.py       # Health endpoint tests
-│   └── test_admin.py        # Admin endpoint tests
-├── Dockerfile
-├── Makefile
-├── pyproject.toml
-├── requirements.txt
-├── .env.example
-└── README.md
+│   ├── test_health.py           # Testes do endpoint de health
+│   └── test_admin.py            # Testes dos endpoints admin
+│
+├── .env.example                 # Template de variáveis de ambiente
+├── .env                         # Variáveis locais (não versionado)
+├── requirements.txt             # Dependências Python
+├── pyproject.toml               # Configuração do projeto
+├── Dockerfile                   # Imagem Docker (não utilizada atualmente)
+├── Makefile                     # Comandos utilitários
+└── README.md                    # Esta documentação
 ```
 
-## API Endpoints
+## Configuração — variáveis de ambiente
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/health` | Basic health check (returns 200 if service is alive) |
-| GET | `/api/v1/health/ready` | Readiness check (verifies all dependencies) |
-| POST | `/api/v1/admin/index/run` | Trigger indexing job (optional body: source_filter, dry_run) |
-| GET | `/api/v1/admin/index/jobs/{job_id}` | Get job status (pending/running/completed/failed) |
+| Variável | Descrição | Padrão |
+|---|---|---|
+| `INDEXER_PORT` | Porta do servidor HTTP | `8001` |
+| `INDEXER_HOST` | Host de binding | `0.0.0.0` |
+| `DB_URL` | Conexão com PostgreSQL + pgvector | — |
+| `MONGO_URL` | Conexão com MongoDB para catálogo | — |
+| `MONGO_DB` | Nome do banco MongoDB | `tcc_catalog` |
+| `MINIO_ENDPOINT` | Endpoint do MinIO | `minio:9000` |
+| `MINIO_ACCESS_KEY` | Chave de acesso do MinIO | `tcc_minio_admin` |
+| `MINIO_SECRET_KEY` | Chave secreta do MinIO | `tcc_minio_pass` |
+| `MINIO_USE_SSL` | Usar SSL com MinIO | `false` |
+| `MINIO_BUCKET` | Bucket para artefatos públicos | `tcc-public-index` |
+| `REDIS_URL` | Conexão com Redis | — |
+| `GOOGLE_BOOKS_API_KEY` | Chave da API Google Books (opcional) | — |
+| `OPENALEX_ENABLED` | Habilitar fonte OpenAlex | `true` |
+| `ARXIV_ENABLED` | Habilitar fonte arXiv | `true` |
+| `CROSSREF_ENABLED` | Habilitar fonte Crossref | `true` |
+| `BATCH_SIZE` | Registros por batch durante sync | `100` |
+| `SYNC_INTERVAL_MINUTES` | Intervalo de re-sync (não utilizado) | `60` |
+| `MAX_RETRIES` | Tentativas máximas em caso de falha | `3` |
 
-## Configuration
+## Nota importante
 
-See `.env.example` for all available options. Key settings:
+**Este serviço é opcional e pode permanecer desligado.** Ele não é necessário para o funcionamento do sistema principal (Go Gateway + Python Agent). A funcionalidade de recuperação de fontes públicas foi migrada para o Python Agent e funciona sob demanda, sem necessidade de indexação prévia.
 
-- `INDEXER_PORT` - HTTP server port (default: 8001)
-- `DB_URL` - PostgreSQL connection for embeddings
-- `MONGO_URL` - MongoDB connection for book catalog
-- `REDIS_URL` - Redis connection for cache and queue
-- `MINIO_ENDPOINT` - MinIO/S3 endpoint for artifact storage
-- `GOOGLE_BOOKS_API_KEY` - Google Books API key (optional)
-- `SYNC_INTERVAL_MINUTES` - How often to re-sync sources
-- `BATCH_SIZE` - Records per batch during sync
-
-## Metadata Contract
-
-Embeddings stored in PostgreSQL must include the following JSONB metadata fields:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `source_type` | string | Origin type (e.g., `public_library`, `user_upload`) |
-| `source_provider` | string | Source provider (e.g., `gutenberg`, `openlibrary`, `google_books`) |
-| `source_id` | string | Unique identifier in the original source |
-| `artifact_key` | string | MinIO/S3 key of the artifact |
-| `checksum` | string | Content hash for integrity verification |
-| `chunk_version` | int | Chunk version for reprocessing (default: 1) |
-
-## Deduplication Policy
-
-- **Stable book keys**: `gutenberg_id` → `ol_key` → hash(title+authors)
-- **Chunk fingerprint**: `source_id + checksum + chunk_version`
+Se você está configurando o projeto pela primeira vez, pode ignorar este serviço completamente.
